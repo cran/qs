@@ -1,10 +1,13 @@
-331851eb3c51addd8655bee7e71899c2 *DESCRIPTION
+bc7ab7db8cd0c7203ba15e0f9c8be9a8 *DESCRIPTION
 73f1eb20517c55bf9493b7dd6e480788 *LICENSE
 67d63ae6201a921f6fc1699a29278570 *NAMESPACE
 5262fafd8d1e3aa0fa7a2e935e072c69 *R/RcppExports.R
 eb5a6c9d3360c604ac24db0246f8852b *R/help_files.R
-f1cabc7e33523c31cee4cb3908eb8840 *README.md
+731d81882276084d146be664b44f3607 *README.md
 d864bcb1aed20551cd5fa2770e7b81b5 *build/vignette.rds
+6e6fbd4608a7a748d2311382dc52f0e6 *cleanup
+00098655e09505d5ffe0451c7a42eeda *configure
+6d7a3d08870af1d43bf532511da12e91 *configure.ac
 d30c2e07fed287d56e06a9d3a0fc455d *inst/doc/vignette.R
 a381f1995dc1b83f8380491717a92650 *inst/doc/vignette.pdf
 f38b35658e3ac628481b4d45b1304c84 *inst/doc/vignette.rmd
@@ -18,7 +21,8 @@ e89ef38b394605c25ff49f8975df531b *man/qs_use_alt_rep.Rd
 32e336cabb90be6017319655fe6f0a2d *man/zstd_compressBound.Rd
 0c34dd655e100d363912d89dbb3d55e5 *man/zstd_compress_raw.Rd
 21a1816cd195de343e8ce921cc517333 *man/zstd_decompress_raw.Rd
-6480ec2f4afc0837a7b3b3eee001f9f8 *src/Makevars
+e8bc3eff9f14ae02978e4d0792e9e1f7 *src/Makevars.in
+02ecf44761e63a432689a1bfb57d54be *src/Makevars.win
 af2b0f3d85ab074a79530a5e84e4a407 *src/RcppExports.cpp
 b234ee4d69f5fce4486a80fdaf4a4263 *src/ZSTD/COPYING
 c7f0b161edbe52f5f345a3d1311d0b32 *src/ZSTD/LICENSE
@@ -78,7 +82,7 @@ f7c5557d985d5016f0a27122bd2c2496 *src/ZSTD/dictBuilder/divsufsort.h
 06bdbe03418fd2d878c4e01d8f5a2076 *src/ZSTD/dictBuilder/zdict.h
 63c694e6e91acc5c6f304dc25a1a8bd5 *src/ZSTD/zstd.h
 fdb4187455bc35d4bc7602b249e02909 *src/qs_functions.cpp
-d9be988f24320f2f503791144e74a301 *src/qs_header.h
+94bc830adee5bf25ac80848a1716005b *src/qs_header.h
 bee609ccc19310ac34a8eef946397e19 *vignettes/dataframe_bench.png
 a3373d6db49c2eb02dce9a0b6cc46ab2 *vignettes/nested_list_bench.png
 e06785c41eb367998e32034a76a109c6 *vignettes/vignette.html

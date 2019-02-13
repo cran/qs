@@ -300,8 +300,17 @@ uint64_t readSizeFromFile8(std::ifstream & myFile) {
   myFile.read(a.data(),8);
   return *reinterpret_cast<uint64_t*>(a.data());
 }
-uint32_t char2Size4(std::array<char,4> a) { return *reinterpret_cast<uint32_t*>(a.data()); }
-uint64_t char2Size8(std::array<char,8> a) { return *reinterpret_cast<uint64_t*>(a.data()); }
+
+// casts to <POD> and increments offset
+template<typename POD>
+inline POD unaligned_cast(char* data, uint64_t offset) {
+  POD y;
+  std::memcpy(&y, data + offset, sizeof(y));
+  return y;
+}
+
+// uint32_t char2Size4(std::array<char,4> a) { return *reinterpret_cast<uint32_t*>(a.data()); }
+// uint64_t char2Size8(std::array<char,8> a) { return *reinterpret_cast<uint64_t*>(a.data()); }
 
 ////////////////////////////////////////////////////////////////
 // de-serialization functions
@@ -373,17 +382,17 @@ struct Data_Context {
       object_type = REALSXP;
       return;
     case numeric_header_16:
-      r_array_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
       data_offset += 3;
       object_type = REALSXP;
       return;
     case numeric_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = REALSXP;
       return;
     case numeric_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = REALSXP;
       return;
@@ -393,17 +402,17 @@ struct Data_Context {
       object_type = VECSXP;
       return;
     case list_header_16:
-      r_array_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
       data_offset += 3;
       object_type = VECSXP;
       return;
     case list_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = VECSXP;
       return;
     case list_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = VECSXP;
       return;
@@ -413,17 +422,17 @@ struct Data_Context {
       object_type = INTSXP;
       return;
     case integer_header_16:
-      r_array_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
       data_offset += 3;
       object_type = INTSXP;
       return;
     case integer_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = INTSXP;
       return;
     case integer_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = INTSXP;
       return;
@@ -433,27 +442,27 @@ struct Data_Context {
       object_type = LGLSXP;
       return;
     case logical_header_16:
-      r_array_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
       data_offset += 3;
       object_type = LGLSXP;
       return;
     case logical_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = LGLSXP;
       return;
     case logical_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = LGLSXP;
       return;
     case raw_header_32:
-      r_array_len = *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = RAWSXP;
       return;
     case raw_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = RAWSXP;
       return;
@@ -463,27 +472,27 @@ struct Data_Context {
       object_type = STRSXP;
       return;
     case character_header_16:
-      r_array_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
       data_offset += 3;
       object_type = STRSXP;
       return;
     case character_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = STRSXP;
       return;
     case character_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = STRSXP;
       return;
     case complex_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = CPLXSXP;
       return;
     case complex_header_64:
-      r_array_len =  *reinterpret_cast<uint64_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = CPLXSXP;
       return;
@@ -498,17 +507,17 @@ struct Data_Context {
       object_type = ANYSXP;
       return;
     case attribute_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = ANYSXP;
       return;
     case nstype_header_32:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 5;
       object_type = S4SXP;
       return;
     case nstype_header_64:
-      r_array_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
       data_offset += 9;
       object_type = S4SXP;
       return;
@@ -543,11 +552,11 @@ struct Data_Context {
         data_offset += 2;
         return;
       case string_header_16:
-        r_string_len = *reinterpret_cast<uint16_t*>(header+data_offset+1) ;
+        r_string_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
         data_offset += 3;
         return;
       case string_header_32:
-        r_string_len =  *reinterpret_cast<uint32_t*>(header+data_offset+1) ;
+        r_string_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
         data_offset += 5;
         return;
       case string_header_NA:

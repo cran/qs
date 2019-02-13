@@ -1,5 +1,4 @@
-PKG_CPPFLAGS = -I. -IZSTD/ -IZSTD/ -IZSTD/common \
-	-IZSTD/decompress -IZSTD/compress
+PKG_CPPFLAGS = -I. -IZSTD/ -IZSTD/common -IZSTD/decompress -IZSTD/compress
 
 CXX_STD      = CXX11
 PKG_LIBS     = -L. -lzstd
