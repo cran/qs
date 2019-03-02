@@ -92,7 +92,7 @@ much speed and compression as possible. For simplicity, `qs` comes with
 3 presets, which trades speed and compression ratio: “fast”, “balanced”
 and “high”. The benchmark below uses the “fast” preset.
 
-![](vignettes/headline_bench.png "headline_bench")
+![](headline_bench.png "headline_bench")
 
   - character: `randomStrings(1e6)`
   - numeric:`rnorm(1e7)`
@@ -116,7 +116,7 @@ and number of threads were varied and plotted. For `qs`, byte shuffle
 settings (see the “Byte Shuffling” section below) and algorithm used
 were evaluated.
 
-![](vignettes/dataframe_bench.png "dataframe_bench")
+![](dataframe_bench.png "dataframe_bench")
 
 A `data.frame` with 5 million rows was employed for the purpose of this
 evaluation:

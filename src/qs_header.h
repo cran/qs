@@ -1,25 +1,26 @@
 /* qs - Quick Serialization of R Objects
  Copyright (C) 2019-prsent Travers Ching
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-You can contact the author at:
-https://github.com/traversc/qs
-*/
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+ 
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ 
+ You can contact the author at:
+ https://github.com/traversc/qs
+ */
 
 
 #include <Rcpp.h>
+
 #include <fstream>
 #include <cstring>
 #include <iostream>
@@ -31,6 +32,7 @@ https://github.com/traversc/qs
 #include <utility>
 #include <string>
 #include <vector>
+#include <climits>
 
 #include <R.h>
 #include <Rinternals.h>
@@ -38,8 +40,13 @@ https://github.com/traversc/qs
 
 #include "RApiSerializeAPI.h"
 #include "zstd.h"
+#include "lz4.h"
+#include "BLOSC/shuffle_routines.h"
+#include "BLOSC/unshuffle_routines.h"
 
 #include <R_ext/Rdynload.h>
+
+using namespace Rcpp;
 
 ////////////////////////////////////////////////////////////////
 // alt rep string class
@@ -56,7 +63,6 @@ extern "C" {
 #include <R_ext/Altrep.h>
 #endif
 
-using namespace Rcpp;
 
 struct stdvec_data {
   std::vector<std::string> strings;
@@ -220,13 +226,12 @@ void init_stdvec_double(DllInfo* dll){
 // common utility functions and constants
 ////////////////////////////////////////////////////////////////
 
-static bool use_alt_rep_bool = true;
-
 bool is_big_endian();
 
 // #define BLOCKSIZE 262144 // 2^20 bytes per block
 #define BLOCKRESERVE 64
 #define NA_STRING_LENGTH 4294967295 // 2^32-1 -- length used to signify NA value
+#define MIN_SHUFFLE_ELEMENTS 4
 
 static uint64_t BLOCKSIZE = 524288;
 
@@ -301,7 +306,7 @@ uint64_t readSizeFromFile8(std::ifstream & myFile) {
   return *reinterpret_cast<uint64_t*>(a.data());
 }
 
-// casts to <POD> and increments offset
+// unaligned cast to <POD>
 template<typename POD>
 inline POD unaligned_cast(char* data, uint64_t offset) {
   POD y;
@@ -309,8 +314,33 @@ inline POD unaligned_cast(char* data, uint64_t offset) {
   return y;
 }
 
-// uint32_t char2Size4(std::array<char,4> a) { return *reinterpret_cast<uint32_t*>(a.data()); }
-// uint64_t char2Size8(std::array<char,8> a) { return *reinterpret_cast<uint64_t*>(a.data()); }
+
+
+
+// Normalize lz4/zstd function arguments so we can use function types
+typedef size_t (*compress_fun)(void*, size_t, const void*, size_t, int);
+typedef size_t (*decompress_fun)(void*, size_t, const void*, size_t);
+typedef size_t (*cbound_fun)(size_t);
+
+size_t LZ4_compressBound_fun(size_t srcSize) {
+  return LZ4_compressBound(srcSize);
+}
+
+size_t LZ4_compress_fun( void* dst, size_t dstCapacity,
+                         const void* src, size_t srcSize,
+                                int compressionLevel) {
+  return LZ4_compress_fast(reinterpret_cast<char*>(const_cast<void*>(src)), 
+                           reinterpret_cast<char*>(const_cast<void*>(dst)),
+                           static_cast<int>(srcSize), static_cast<int>(dstCapacity), compressionLevel);
+}
+
+size_t LZ4_decompress_fun( void* dst, size_t dstCapacity,
+                           const void* src, size_t compressedSize) {
+  return LZ4_decompress_safe(reinterpret_cast<char*>(const_cast<void*>(src)), 
+                             reinterpret_cast<char*>(const_cast<void*>(dst)),
+                             static_cast<int>(compressedSize), static_cast<int>(dstCapacity));
+  
+}
 
 ////////////////////////////////////////////////////////////////
 // de-serialization functions
@@ -318,25 +348,56 @@ inline POD unaligned_cast(char* data, uint64_t offset) {
 
 struct Data_Context {
   std::ifstream & myFile;
+  bool use_alt_rep_bool;
+  
+  bool cplx_shuffle;
+  bool real_shuffle;
+  bool int_shuffle;
+  bool logical_shuffle;
+  decompress_fun decompFun;
+  cbound_fun cbFun;
+  
   uint64_t number_of_blocks;
   std::vector<char> zblock;
   std::vector<char> block;
+  std::vector<uint8_t> shuffleblock = std::vector<uint8_t>(256);
   uint64_t data_offset;
   uint64_t block_i;
   uint64_t block_size;
   std::string temp_string;
-  Data_Context(std::ifstream & mf) : myFile(mf) {
-    std::array<char,4> reserve_bits = {0,0,0,0};
-    myFile.read(reserve_bits.data(),4);
+
+  Data_Context(std::ifstream & mf, bool use_alt_rep) : myFile(mf), use_alt_rep_bool(use_alt_rep) {
+    std::array<unsigned char,4> reserve_bits = {0,0,0,0};
+    myFile.read(reinterpret_cast<char*>(reserve_bits.data()), 4);
     bool sys_endian = is_big_endian() ? 1 : 0;
     if(reserve_bits[3] != sys_endian) throw exception("Endian of system doesn't match file endian");
+    
+    unsigned char algo_control = reserve_bits[2];
+    cplx_shuffle = algo_control & 0x08;
+    real_shuffle = algo_control & 0x04;
+    int_shuffle = algo_control & 0x02;
+    logical_shuffle = algo_control & 0x01;
+    
+    int algo = algo_control & 0x10 ? 1 : 0;
+    
+    // algo = 0 (ZSTD), algo = 1 (LZ4)
+    if(algo == 0) {
+      decompFun = &ZSTD_decompress;
+      cbFun = &ZSTD_compressBound;
+    } else { // algo == 1
+      decompFun = &LZ4_decompress_fun;
+      cbFun = &LZ4_compressBound_fun;
+    }
+    
     number_of_blocks = readSizeFromFile8(myFile);
-    zblock = std::vector<char>(ZSTD_compressBound(BLOCKSIZE));
+    zblock = std::vector<char>(cbFun(BLOCKSIZE));
     block = std::vector<char>(BLOCKSIZE);
     data_offset = 0;
     block_i = 0;
     block_size = 0;
     temp_string = std::string(256, '\0');
+    
+
   }
   void readHeader(SEXPTYPE & object_type, uint64_t & r_array_len) {
     if(data_offset >= block_size) decompress_block();
@@ -573,7 +634,7 @@ struct Data_Context {
     myFile.read(zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
     myFile.read(zblock.data(), zsize);
-    block_size = ZSTD_decompress(bpointer, BLOCKSIZE, zblock.data(), zsize);
+    block_size = decompFun(bpointer, BLOCKSIZE, zblock.data(), zsize);
   }
   void decompress_block() {
     block_i++;
@@ -581,7 +642,7 @@ struct Data_Context {
     myFile.read(zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
     myFile.read(zblock.data(), zsize);
-    block_size = ZSTD_decompress(block.data(), BLOCKSIZE, zblock.data(), zsize);
+    block_size = decompFun(block.data(), BLOCKSIZE, zblock.data(), zsize);
     data_offset = 0;
   }
   void getBlockData(char* outp, uint64_t data_size) {
@@ -602,6 +663,15 @@ struct Data_Context {
           bytes_accounted += data_offset;
         }
       }
+    }
+  }
+  void getShuffleBlockData(char* outp, uint64_t data_size, uint64_t bytesoftype) {
+    if(data_size >= MIN_SHUFFLE_ELEMENTS) {
+      if(data_size > shuffleblock.size()) shuffleblock.resize(data_size);
+      getBlockData(reinterpret_cast<char*>(shuffleblock.data()), data_size);
+      blosc_unshuffle(shuffleblock.data(), reinterpret_cast<uint8_t*>(outp), data_size, bytesoftype);
+    } else if(data_size > 0) {
+      getBlockData(outp, data_size);
     }
   }
   SEXP processBlock() {
@@ -625,15 +695,35 @@ struct Data_Context {
       break;
     case REALSXP:
       obj = PROTECT(Rf_allocVector(REALSXP, r_array_len));
-      if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8);
+      if(real_shuffle) {
+        getShuffleBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8, 8);
+      } else {
+        getBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8);
+      }
       break;
     case INTSXP:
       obj = PROTECT(Rf_allocVector(INTSXP, r_array_len));
-      if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4);
+      if(int_shuffle) {
+        getShuffleBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4, 4);
+      } else {
+        getBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4);
+      }
       break;
     case LGLSXP:
       obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len));
-      if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4);
+      if(logical_shuffle) {
+        getShuffleBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4, 4);
+      } else {
+        getBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4);
+      }
+      break;
+    case CPLXSXP:
+      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));
+      if(cplx_shuffle) {
+        getShuffleBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16, 8);
+      } else {
+        getBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16);
+      }
       break;
     case RAWSXP:
       obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
@@ -698,10 +788,6 @@ struct Data_Context {
         }
       }
       break;
-    case CPLXSXP:
-      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));
-      if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16);
-      break;
     case S4SXP:
     {
       SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
@@ -740,15 +826,43 @@ struct Data_Context {
 
 struct CompressBuffer {
   uint64_t number_of_blocks = 0;
+  std::vector<uint8_t> shuffleblock = std::vector<uint8_t>(256);
   std::vector<char> block = std::vector<char>(BLOCKSIZE);
-  std::vector<char> zblock = std::vector<char>(ZSTD_compressBound(BLOCKSIZE));
   uint64_t current_blocksize=0;
   std::ofstream & myFile;
   uint64_t compress_level;
-  CompressBuffer(std::ofstream & f, int cl) : myFile(f), compress_level(cl) {}
+  
+  bool cplx_shuffle;
+  bool real_shuffle;
+  bool int_shuffle;
+  bool logical_shuffle;
+  compress_fun compFun;
+  cbound_fun cbFun;
+  
+  std::vector<char> zblock;
+
+  CompressBuffer(std::ofstream & f, int cl, unsigned char algo_control) : myFile(f), compress_level(cl) {
+    cplx_shuffle = algo_control & 0x08;
+    real_shuffle = algo_control & 0x04;
+    int_shuffle = algo_control & 0x02;
+    logical_shuffle = algo_control & 0x01;
+    
+    int algo = algo_control & 0x10 ? 1 : 0;
+    
+    if(algo == 0) {
+      compFun = &ZSTD_compress;
+      cbFun = &ZSTD_compressBound;
+    } else { // algo == 1
+      compFun = &LZ4_compress_fun;
+      cbFun = &LZ4_compressBound_fun;
+    }
+    
+    zblock = std::vector<char>(cbFun(BLOCKSIZE));
+    
+  }
   void flush() {
     if(current_blocksize > 0) {
-      uint64_t zsize = ZSTD_compress(zblock.data(), zblock.size(), block.data(), current_blocksize, compress_level);
+      uint64_t zsize = compFun(zblock.data(), zblock.size(), block.data(), current_blocksize, compress_level);
       writeSizeToFile4(myFile, zsize);
       myFile.write(zblock.data(), zsize);
       current_blocksize = 0;
@@ -762,7 +876,7 @@ struct CompressBuffer {
         flush();
       }
       if(current_blocksize == 0 && len - current_pointer_consumed >= BLOCKSIZE) {
-        uint64_t zsize = ZSTD_compress(zblock.data(), zblock.size(), data + current_pointer_consumed, BLOCKSIZE, compress_level);
+        uint64_t zsize = compFun(zblock.data(), zblock.size(), data + current_pointer_consumed, BLOCKSIZE, compress_level);
         writeSizeToFile4(myFile, zsize);
         myFile.write(zblock.data(), zsize);
         current_pointer_consumed += BLOCKSIZE;
@@ -774,6 +888,15 @@ struct CompressBuffer {
         current_blocksize += add_length;
         current_pointer_consumed += add_length;
       }
+    }
+  }
+  void shuffle_append(char* data, uint64_t len, size_t bytesoftype, bool contiguous = false) {
+    if(len > MIN_SHUFFLE_ELEMENTS) {
+      if(len > shuffleblock.size()) shuffleblock.resize(len);
+      blosc_shuffle(reinterpret_cast<uint8_t*>(data), shuffleblock.data(), len, bytesoftype);
+      append(reinterpret_cast<char*>(shuffleblock.data()), len, true);
+    } else if(len > 0) {
+      append(data, len, true);
     }
   }
 };
@@ -896,8 +1019,8 @@ void writeHeader(CompressBuffer & vbuf, SEXPTYPE object_type, uint64_t length) {
   default:
     // should never reach here
     throw exception("something went wrong writing object header");
-    // vbuf.append(reinterpret_cast<char*>(const_cast<unsigned char*>(&null_header)), 1);
-    // return;
+  // vbuf.append(reinterpret_cast<char*>(const_cast<unsigned char*>(&null_header)), 1);
+  // return;
   }
 }
 
@@ -941,8 +1064,6 @@ void writeAttributeHeader(CompressBuffer & vbuf, uint64_t length) {
   }
 }
 
-
-
 void appendToVbuf(CompressBuffer & vbuf, RObject & x, bool attributes_processed = false) {
   if(!attributes_processed && stypes.find(TYPEOF(x)) != stypes.end()) {
     std::vector<std::string> anames = x.attributeNames();
@@ -984,15 +1105,36 @@ void appendToVbuf(CompressBuffer & vbuf, RObject & x, bool attributes_processed 
     } else {
       switch(TYPEOF(x)) {
       case REALSXP:
-        vbuf.append(reinterpret_cast<char*>(REAL(x)), dl*8, true); break;
+        if(vbuf.real_shuffle) {
+          vbuf.shuffle_append(reinterpret_cast<char*>(REAL(x)), dl*8, 8, true);
+        } else {
+          vbuf.append(reinterpret_cast<char*>(REAL(x)), dl*8, true); 
+        }
+        break;
       case INTSXP:
-        vbuf.append(reinterpret_cast<char*>(INTEGER(x)), dl*4, true); break;
+        if(vbuf.int_shuffle) {
+          vbuf.shuffle_append(reinterpret_cast<char*>(INTEGER(x)), dl*4, 4, true); break;
+        } else {
+          vbuf.append(reinterpret_cast<char*>(INTEGER(x)), dl*4, true); 
+        }
+        break;
       case LGLSXP:
-        vbuf.append(reinterpret_cast<char*>(LOGICAL(x)), dl*4, true); break;
+        if(vbuf.logical_shuffle) {
+          vbuf.shuffle_append(reinterpret_cast<char*>(LOGICAL(x)), dl*4, 4, true); break;
+        } else {
+          vbuf.append(reinterpret_cast<char*>(LOGICAL(x)), dl*4, true); 
+        }
+        break;
       case RAWSXP:
-        vbuf.append(reinterpret_cast<char*>(RAW(x)), dl, true); break;
+        vbuf.append(reinterpret_cast<char*>(RAW(x)), dl, true); 
+        break;
       case CPLXSXP:
-        vbuf.append(reinterpret_cast<char*>(COMPLEX(x)), dl*16, true); break;
+        if(vbuf.cplx_shuffle) {
+          vbuf.shuffle_append(reinterpret_cast<char*>(COMPLEX(x)), dl*16, 8, true); break;
+        } else {
+          vbuf.append(reinterpret_cast<char*>(COMPLEX(x)), dl*16, true); 
+        }
+        break;
       case NILSXP:
         break;
       }
@@ -1009,3 +1151,4 @@ void appendToVbuf(CompressBuffer & vbuf, RObject & x, bool attributes_processed 
     vbuf.append(reinterpret_cast<char*>(RAW(xserialized)), xserialized.size(), true);
   }
 }
+
