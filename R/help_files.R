@@ -1,5 +1,5 @@
 # qs - Quick Serialization of R Objects
-# Copyright (C) 2019-prsent Travers Ching
+# Copyright (C) 2019-present Travers Ching
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -17,19 +17,19 @@
 # You can contact the author at:
 #   https://github.com/traversc/qs
 
-
-
 #' qsave
 #' 
 #' Saves (serializes) an object to disk.  
 #' @usage qsave(x, file, 
-#' preset = "balanced", algorithm = "lz4", compress_level = 1L, shuffle_control = 15L)
+#' preset = "balanced", algorithm = "lz4", compress_level = 1L, 
+#' shuffle_control = 15L, nthreads = 1)
 #' @param x the object to serialize.
 #' @param file the file name/path.
 #' @param preset One of "fast", "balanced" (default), "high" or "custom".  See details.  
 #' @param algorithm Compression algorithm used.  Either lz4 (default or zstd). 
 #' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
 #' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
+#' @param nthreads Number of threads to use.  Default 1.  
 #' @details 
 #' This function serializes and compresses R objects using block compresion with the option of byte shuffling.  
 #' There are lots of possible parameters.  This function exposes three parameters related to compression level and byte shuffling. 
@@ -57,6 +57,12 @@
 #' x2 <- qread(myfile)
 #' identical(x, x2) # returns true
 #' 
+#' # qs support multithreading
+#' qsave(x, myfile, nthreads=2)
+#' x2 <- qread(myfile, nthreads=2)
+#' identical(x, x2) # returns true
+#' 
+#' # Other examples
 #' z <- 1:1e7
 #' myfile <- tempfile()
 #' qsave(z, myfile)
@@ -68,15 +74,19 @@
 #' qsave(w, myfile)
 #' w2 <- qread(myfile)
 #' identical(w, w2) # returns true
-#' @name qsave
-NULL
+#' @export
+qsave <- function(x, file, preset="balanced", algorithm="lz4", compress_level=1L, shuffle_control=15L, nthreads=1) {
+  c_qsave(x,file,preset,algorithm, compress_level, shuffle_control, nthreads)
+}
 
 #' qread
 #' 
 #' Reads a object in a file serialized to disk
-#' @usage qread(file, use_alt_rep=FALSE)
+#' @usage qread(file, use_alt_rep=TRUE, inspect=FALSE, nthreads=1)
 #' @param file the file name/path
-#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE  
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: TRUE
+#' @param inspect Whether to call qinspect before de-serializing data.  Set to true if you suspect your data may be corrupted.  Default: FALSE
+#' @param nthreads Number of threads to use.  Default 1.  
 #' @return The de-serialized object
 #' @examples 
 #' x <- data.frame(int = sample(1e3, replace=TRUE), 
@@ -87,6 +97,12 @@ NULL
 #' x2 <- qread(myfile)
 #' identical(x, x2) # returns true
 #' 
+#' # qs support multithreading
+#' qsave(x, myfile, nthreads=2)
+#' x2 <- qread(myfile, nthreads=2)
+#' identical(x, x2) # returns true
+#' 
+#' # Other examples
 #' z <- 1:1e7
 #' myfile <- tempfile()
 #' qsave(z, myfile)
@@ -98,8 +114,31 @@ NULL
 #' qsave(w, myfile)
 #' w2 <- qread(myfile)
 #' identical(w, w2) # returns true
-#' @name qread
-NULL
+#' @export
+qread <- function(file, use_alt_rep=TRUE, inspect=FALSE, nthreads=1) {
+  c_qread(normalizePath(file, mustWork=FALSE), use_alt_rep, inspect, nthreads)
+}
+
+#' qinspect
+#' 
+#' Performs a quick inspection of a serialized object/file, determines whether the file was properly compressed.  
+#' E.g., if your process was interrupted for some reason, and you suspect qsave was interrupted, you can run this function 
+#' to test the integrity of the serialized object.  
+#' @usage qinspect(file)
+#' @param file the file name/path
+#' @return A boolean.  TRUE if the object was properly compressed.  FALSE if there is an issue.  
+#' @examples 
+#' x <- data.frame(int = sample(1e3, replace=TRUE), 
+#'                  num = rnorm(1e3), 
+#'                  char = randomStrings(1e3), stringsAsFactors = FALSE)
+#' myfile <- tempfile()
+#' qsave(x, myfile)
+#' qinspect(myfile) # returns true
+#' @export
+qinspect <- function(file) {
+  c_qinspect(normalizePath(file, mustWork=FALSE))
+}
+
 
 #' qdump
 #' 
@@ -114,8 +153,10 @@ NULL
 #' myfile <- tempfile()
 #' qsave(x, myfile)
 #' x2 <- qdump(myfile)
-#' @name qdump
-NULL
+#' @export
+qdump <- function(file) {
+  c_qdump(normalizePath(file, mustWork=FALSE))
+}
 
 
 #' Zstd compress bound

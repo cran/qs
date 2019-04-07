@@ -5,7 +5,8 @@
 \title{qsave}
 \usage{
 qsave(x, file, 
-preset = "balanced", algorithm = "lz4", compress_level = 1L, shuffle_control = 15L)
+preset = "balanced", algorithm = "lz4", compress_level = 1L, 
+shuffle_control = 15L, nthreads = 1)
 }
 \arguments{
 \item{x}{the object to serialize.}
@@ -19,6 +20,8 @@ preset = "balanced", algorithm = "lz4", compress_level = 1L, shuffle_control = 1
 \item{compress_level}{The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).}
 
 \item{shuffle_control}{An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.}
+
+\item{nthreads}{Number of threads to use.  Default 1.}
 }
 \description{
 Saves (serializes) an object to disk.
@@ -51,6 +54,12 @@ qsave(x, myfile)
 x2 <- qread(myfile)
 identical(x, x2) # returns true
 
+# qs support multithreading
+qsave(x, myfile, nthreads=2)
+x2 <- qread(myfile, nthreads=2)
+identical(x, x2) # returns true
+
+# Other examples
 z <- 1:1e7
 myfile <- tempfile()
 qsave(z, myfile)

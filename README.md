@@ -1,9 +1,12 @@
-Using the qs package
-================
 
-# qs [![Build Status](https://travis-ci.org/traversc/qs.svg)](https://travis-ci.org/traversc/qs) [![CRAN\_Status\_Badge](http://www.r-pkg.org/badges/version/qs)](https://cran.r-project.org/package=qs) [![CRAN\_Downloads\_Badge](https://cranlogs.r-pkg.org/badges/qs)](https://cran.r-project.org/package=qs)
+<img src="vignettes/qshex.png" width = "130" height = "150" align="right" style="border:0px;padding:15px">
 
-*Quick serialization of R objects*
+[![Build
+Status](https://travis-ci.org/traversc/qs.svg)](https://travis-ci.org/traversc/qs)
+[![CRAN\_Status\_Badge](http://www.r-pkg.org/badges/version/qs)](https://cran.r-project.org/package=qs)
+[![CRAN\_Downloads\_Badge](https://cranlogs.r-pkg.org/badges/qs)](https://cran.r-project.org/package=qs)
+
+# QS: Quick serialization of R objects
 
 `qs` provides an interface for quickly saving and reading objects to and
 from disk. The goal of this package is to provide a lightning-fast and
@@ -37,7 +40,7 @@ For R version 3.5 or higher:
 
 ``` r
 install.packages("qs") ## CRAN version
-remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2") ## Latest version
+remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2") ## Latest experimental version
 ```
 
 For R version 3.4 and lower:
@@ -51,20 +54,20 @@ remotes::install_github("traversc/qs", ref = "qs34")
 The table below compares the features of different serialization
 approaches in R.
 
-|                      |     qs      |        fst         | saveRDS |
-| -------------------- | :---------: | :----------------: | :-----: |
-| Not Slow             |      ✔      |         ✔          |    ❌    |
-| Numeric Vectors      |      ✔      |         ✔          |    ✔    |
-| Integer Vectors      |      ✔      |         ✔          |    ✔    |
-| Logical Vectors      |      ✔      |         ✔          |    ✔    |
-| Character Vectors    |      ✔      |         ✔          |    ✔    |
-| Character Encoding   |      ✔      | (vector-wide only) |    ✔    |
-| Complex Vectors      |      ✔      |         ❌          |    ✔    |
-| Data.Frames          |      ✔      |         ✔          |    ✔    |
-| On disk row access   |      ❌      |         ✔          |    ❌    |
-| Attributes           |      ✔      |        Some        |    ✔    |
-| Lists / Nested Lists |      ✔      |         ❌          |    ✔    |
-| Multi-threaded       | ❌ (Not Yet) |         ✔          |    ❌    |
+|                      | qs |        fst         | saveRDS |
+| -------------------- | :-: | :----------------: | :-----: |
+| Not Slow             | ✔  |         ✔          |    ❌    |
+| Numeric Vectors      | ✔  |         ✔          |    ✔    |
+| Integer Vectors      | ✔  |         ✔          |    ✔    |
+| Logical Vectors      | ✔  |         ✔          |    ✔    |
+| Character Vectors    | ✔  |         ✔          |    ✔    |
+| Character Encoding   | ✔  | (vector-wide only) |    ✔    |
+| Complex Vectors      | ✔  |         ❌          |    ✔    |
+| Data.Frames          | ✔  |         ✔          |    ✔    |
+| On disk row access   | ❌  |         ✔          |    ❌    |
+| Attributes           | ✔  |        Some        |    ✔    |
+| Lists / Nested Lists | ✔  |         ❌          |    ✔    |
+| Multi-threaded       | ✔  |         ✔          |    ❌    |
 
 `qs` also includes a number of advanced features:
 
@@ -190,9 +193,10 @@ system.time(qread("temp.q", use_alt_rep=F))[1]
 #     1.703 seconds
 ```
 
-## Future Developments
+## Future developments
 
-  - Multi-threading
+  - Additional compression algorithms
+  - Non-blocked compressed options (for greater compression ratio)
   - Parameter optimization
 
 Future versions will be backwards compatible with the current version.

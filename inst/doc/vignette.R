@@ -1,12 +1,12 @@
 ## ----eval=FALSE----------------------------------------------------------
 #  library(qs)
-#  df1 <- data.frame(x=rnorm(5e6), y=sample(5e6), z=sample(letters,5e6))
+#  df1 <- data.frame(x=rnorm(5e6), y=sample(5e6), z=sample(letters,5e6, replace=T))
 #  qsave(df1, "myfile.q")
 #  df2 <- qread("myfile.q")
 
 ## ----eval=FALSE----------------------------------------------------------
 #  install.packages("qs") ## CRAN version
-#  remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2") ## Latest version
+#  remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2") ## Latest experimental version
 
 ## ----eval=FALSE----------------------------------------------------------
 #  remotes::install_github("traversc/qs", ref = "qs34")
