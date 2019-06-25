@@ -24,49 +24,47 @@
 // de-serialization functions
 ////////////////////////////////////////////////////////////////
 
-struct Ordered_Counter {
-  uint64_t cached_counter_val;
-  std::atomic<uint64_t> counter;
-  std::vector< std::atomic<uint64_t> > thread_counters;
-  Ordered_Counter(unsigned int nthreads) : cached_counter_val(0), counter(0), thread_counters(nthreads) {
-    for(unsigned int i=0; i<nthreads; i++) {
-      thread_counters[i] = 0;
-    }
-  }
-  void update_counter(unsigned int thread_id) {
-    thread_counters[thread_id]++;
-  }
-  bool check_lte(uint64_t val) {
-    if(cached_counter_val > val) return false;
-    auto it = std::min_element(thread_counters.begin(), thread_counters.end());
-    uint64_t min_val = *it;
-    uint64_t first_min = it - thread_counters.begin();
-    cached_counter_val = min_val * thread_counters.size() + first_min;
-    return cached_counter_val <= val;
-  }
-  bool check_lt(uint64_t val) {
-    if(cached_counter_val >= val) return false;
-    auto it = std::min_element(thread_counters.begin(), thread_counters.end());
-    uint64_t min_val = *it;
-    uint64_t first_min = it - thread_counters.begin();
-    cached_counter_val = min_val * thread_counters.size() + first_min;
-    return cached_counter_val < val;
-  }
-};
+// struct Ordered_Counter {
+//   uint64_t cached_counter_val;
+//   std::atomic<uint64_t> counter;
+//   std::vector< std::atomic<uint64_t> > thread_counters;
+//   Ordered_Counter(unsigned int nthreads) : cached_counter_val(0), counter(0), thread_counters(nthreads) {
+//     for(unsigned int i=0; i<nthreads; i++) {
+//       thread_counters[i] = 0;
+//     }
+//   }
+//   void update_counter(unsigned int thread_id) {
+//     thread_counters[thread_id]++;
+//   }
+//   bool check_lte(uint64_t val) {
+//     if(cached_counter_val > val) return false;
+//     auto it = std::min_element(thread_counters.begin(), thread_counters.end());
+//     uint64_t min_val = *it;
+//     uint64_t first_min = it - thread_counters.begin();
+//     cached_counter_val = min_val * thread_counters.size() + first_min;
+//     return cached_counter_val <= val;
+//   }
+//   bool check_lt(uint64_t val) {
+//     if(cached_counter_val >= val) return false;
+//     auto it = std::min_element(thread_counters.begin(), thread_counters.end());
+//     uint64_t min_val = *it;
+//     uint64_t first_min = it - thread_counters.begin();
+//     cached_counter_val = min_val * thread_counters.size() + first_min;
+//     return cached_counter_val < val;
+//   }
+// };
 
+template <class decompress_env> 
 struct Data_Thread_Context {
+  decompress_env denv;
   std::ifstream* myFile;
   const unsigned int nthreads;
   uint64_t blocks_total;
   std::atomic<uint64_t> blocks_read;
-  std::atomic<uint64_t>  blocks_queued;
-  Ordered_Counter blocks_processed;
+  std::atomic<uint64_t>  blocks_processed;
   
-  decompress_fun decompFun;
-  cbound_fun cbFun;
   std::vector<std::thread> threads;
-  
-  std::vector< std::atomic<bool> > primary_block;
+  std::vector<bool> primary_block;
   std::vector< std::vector<char> > zblocks; // one per thread
   std::vector< std::vector<char> > data_blocks; // one per thread
   std::vector< std::vector<char> > data_blocks2; // one per thread
@@ -75,6 +73,32 @@ struct Data_Thread_Context {
   
   std::vector< std::atomic<uint8_t> > data_task;
   std::pair<char*, uint64_t> data_pass;
+  
+  Data_Thread_Context(std::ifstream* mf, unsigned int nt, QsMetadata qm) : 
+    denv(decompress_env()),
+    myFile(mf), nthreads(nt), blocks_read(0), blocks_processed(0) {
+    blocks_total = readSizeFromFile8(*myFile);
+    
+    zblocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(denv.compressBound(BLOCKSIZE)));
+    data_blocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
+    data_blocks2 = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
+    block_pointers = std::vector<std::atomic<char*>>(nthreads);
+    for(unsigned int i=0; i<nthreads; i++) {
+      block_pointers[i] = nullptr;
+    }
+    block_sizes = std::vector<std::atomic<uint64_t>>(nthreads);
+    for(unsigned int i=0; i<nthreads; i++) {
+      block_sizes[i] = 0;
+    }
+    primary_block = std::vector<bool>(nthreads, true);
+    data_task = std::vector< std::atomic<uint8_t> >(nthreads);
+    for(unsigned int i=0; i<nthreads; i++) {
+      data_task[i] = 0;
+    }
+    for (unsigned int i = 0; i < nthreads; i++) {
+      threads.push_back(std::thread(&Data_Thread_Context::worker_thread, this, i));
+    }
+  }
   
   void worker_thread(unsigned int thread_id) {
     std::array<char,4> zsize_ar;
@@ -100,10 +124,10 @@ struct Data_Thread_Context {
       //   decompFun(dp, BLOCKSIZE, zblocks[thread_id].data(), zsize);
       // } else {
       if(primary_block[thread_id]) {
-        block_sizes[thread_id] = decompFun(data_blocks[thread_id].data(), BLOCKSIZE, zblocks[thread_id].data(), zsize);
+        block_sizes[thread_id] = denv.decompress(data_blocks[thread_id].data(), BLOCKSIZE, zblocks[thread_id].data(), zsize);
         block_pointers[thread_id] = data_blocks[thread_id].data();
       } else {
-        block_sizes[thread_id] = decompFun(data_blocks2[thread_id].data(), BLOCKSIZE, zblocks[thread_id].data(), zsize);
+        block_sizes[thread_id] = denv.decompress(data_blocks2[thread_id].data(), BLOCKSIZE, zblocks[thread_id].data(), zsize);
         block_pointers[thread_id] = data_blocks2[thread_id].data();
       }
       while(data_task[thread_id] == 0) {
@@ -115,66 +139,27 @@ struct Data_Thread_Context {
         data_task[thread_id] = 0;
       } else { // data task == 2
         char* dp = data_pass.first;
-        data_task[thread_id] = 0;
         std::memcpy(dp, block_pointers[thread_id], block_sizes[thread_id]);
+        data_task[thread_id] = 0;
       }
       // }
       
-      blocks_processed.update_counter(thread_id);
       primary_block[thread_id] = !primary_block[thread_id];
     }
     // tout << thread_id << " finished thread for loop\n" << std::flush;
   }
   
   void finish() {
-    blocks_queued++;
+    blocks_processed++;
     for(unsigned int i=0; i < nthreads; i++) {
       // tout << "join called " << i << "\n" << std::flush;
       threads[i].join();
     }
   }
   
-  Data_Thread_Context(std::ifstream* mf, unsigned int nt, QsMetadata qm) : 
-    myFile(mf), nthreads(nt), blocks_read(0), blocks_queued(0), blocks_processed(nt) {
-    blocks_total = readSizeFromFile8(*myFile);
-    // tout << blocks_total << " total blocks\n" << std::flush;
-    if(qm.compress_algorithm == 0) {
-      decompFun = &ZSTD_decompress;
-      cbFun = &ZSTD_compressBound;
-    } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) { // algo == 1
-      decompFun = &LZ4_decompress_fun;
-      cbFun = &LZ4_compressBound_fun;
-    } else {
-      throw exception("invalid compression algorithm selected");
-    }
-    
-    zblocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(cbFun(BLOCKSIZE)));
-    data_blocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
-    data_blocks2 = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
-    block_pointers = std::vector<std::atomic<char*>>(nthreads);
-    for(unsigned int i=0; i<nthreads; i++) {
-      block_pointers[i] = nullptr;
-    }
-    block_sizes = std::vector<std::atomic<uint64_t>>(nthreads);
-    for(unsigned int i=0; i<nthreads; i++) {
-      block_sizes[i] = 0;
-    }
-    primary_block = std::vector< std::atomic<bool> >(nthreads);
-    for(unsigned int i=0; i<nthreads; i++) {
-      primary_block[i] = true;
-    }
-    data_task = std::vector< std::atomic<uint8_t> >(nthreads);
-    for(unsigned int i=0; i<nthreads; i++) {
-      data_task[i] = 0;
-    }
-    for (unsigned int i = 0; i < nthreads; i++) {
-      threads.push_back(std::thread(&Data_Thread_Context::worker_thread, this, i));
-    }
-  }
-  
   std::pair<char*, uint64_t> get_block_ptr() {
-    uint64_t current_block = blocks_queued % nthreads;
-    blocks_queued++;
+    uint64_t current_block = blocks_processed % nthreads;
+    blocks_processed++;
     while(data_task[current_block] != 0) std::this_thread::yield();
     data_task[current_block] = 1;
     while(data_task[current_block] != 0) std::this_thread::yield();
@@ -184,8 +169,8 @@ struct Data_Thread_Context {
   }
   
   void decompress_data_direct(char* bpointer) {
-    uint64_t current_block = blocks_queued % nthreads;
-    blocks_queued++;
+    uint64_t current_block = blocks_processed % nthreads;
+    blocks_processed++;
     while(data_task[current_block] != 0) std::this_thread::yield();
     data_pass.first = bpointer;
     data_task[current_block] = 2;
@@ -193,12 +178,13 @@ struct Data_Thread_Context {
   }
 };
 
-
+template <class decompress_env> 
 struct Data_Context_MT {
   std::ifstream * myFile;
-  bool use_alt_rep_bool;
-  Data_Thread_Context dtc;
+  Data_Thread_Context<decompress_env> dtc;
+  xxhash_env xenv;
   QsMetadata qm;
+  bool use_alt_rep_bool;
   
   std::vector<uint8_t> shuffleblock = std::vector<uint8_t>(256);
   uint64_t data_offset;
@@ -207,8 +193,7 @@ struct Data_Context_MT {
   std::string temp_string;
   
   Data_Context_MT(std::ifstream * mf, QsMetadata qm, bool use_alt_rep, unsigned int nthreads) : 
-    myFile(mf), use_alt_rep_bool(use_alt_rep), dtc(mf, nthreads-1, qm) {
-    this->qm = qm;
+    myFile(mf), dtc(mf, nthreads-1, qm), xenv(xxhash_env()), qm(qm), use_alt_rep_bool(use_alt_rep) {
     data_offset = 0;
     block_size = 0;
     temp_string = std::string(256, '\0');
@@ -216,240 +201,23 @@ struct Data_Context_MT {
   void readHeader(SEXPTYPE & object_type, uint64_t & r_array_len) {
     if(data_offset >= block_size) decompress_block();
     char* header = block_data;
-    unsigned char h5 = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xE0;
-    switch(h5) {
-    case numeric_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = REALSXP;
-      return;
-    case list_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = VECSXP;
-      return;
-    case integer_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = INTSXP;
-      return;
-    case logical_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = LGLSXP;
-      return;
-    case character_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = STRSXP;
-      return;
-    case attribute_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = ANYSXP;
-      return;
-    }
-    unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset];
-    switch(hd) {
-    case numeric_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = REALSXP;
-      return;
-    case numeric_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = REALSXP;
-      return;
-    case numeric_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = REALSXP;
-      return;
-    case numeric_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = REALSXP;
-      return;
-    case list_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = VECSXP;
-      return;
-    case list_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = VECSXP;
-      return;
-    case list_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = VECSXP;
-      return;
-    case list_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = VECSXP;
-      return;
-    case integer_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = INTSXP;
-      return;
-    case integer_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = INTSXP;
-      return;
-    case integer_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = INTSXP;
-      return;
-    case integer_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = INTSXP;
-      return;
-    case logical_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = LGLSXP;
-      return;
-    case logical_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = LGLSXP;
-      return;
-    case logical_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = LGLSXP;
-      return;
-    case logical_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = LGLSXP;
-      return;
-    case raw_header_32:
-      r_array_len = unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = RAWSXP;
-      return;
-    case raw_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = RAWSXP;
-      return;
-    case character_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = STRSXP;
-      return;
-    case character_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = STRSXP;
-      return;
-    case character_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = STRSXP;
-      return;
-    case character_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = STRSXP;
-      return;
-    case complex_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = CPLXSXP;
-      return;
-    case complex_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = CPLXSXP;
-      return;
-    case null_header:
-      r_array_len =  0;
-      data_offset += 1;
-      object_type = NILSXP;
-      return;
-    case attribute_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = ANYSXP;
-      return;
-    case attribute_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = ANYSXP;
-      return;
-    case nstype_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = S4SXP;
-      return;
-    case nstype_header_64:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = S4SXP;
-      return;
-    }
-    // additional types
-    throw exception("something went wrong (reading object header)");
+    readHeader_common(object_type, r_array_len, data_offset, header);
   }
   void readStringHeader(uint32_t & r_string_len, cetype_t & ce_enc) {
     if(data_offset >= block_size) decompress_block();
     char* header = block_data;
-    unsigned char enc = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xC0;
-    switch(enc) {
-    case string_enc_native:
-      ce_enc = CE_NATIVE; break;
-    case string_enc_utf8:
-      ce_enc = CE_UTF8; break;
-    case string_enc_latin1:
-      ce_enc = CE_LATIN1; break;
-    case string_enc_bytes:
-      ce_enc = CE_BYTES; break;
-    }
-    
-    if((reinterpret_cast<unsigned char*>(header)[data_offset] & 0x20) == string_header_5) {
-      r_string_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      return;
-    } else {
-      unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset] & 0x1F;
-      switch(hd) {
-      case string_header_8:
-        r_string_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-        data_offset += 2;
-        return;
-      case string_header_16:
-        r_string_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-        data_offset += 3;
-        return;
-      case string_header_32:
-        r_string_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-        data_offset += 5;
-        return;
-      case string_header_NA:
-        r_string_len = NA_STRING_LENGTH;
-        data_offset += 1;
-        return;
-      }
-    } 
-    throw exception("something went wrong (reading string header)");
+    readStringHeader_common(r_string_len, ce_enc, data_offset, header);
   }
   void decompress_direct(char* bpointer) {
     dtc.decompress_data_direct(bpointer);
+    if(qm.check_hash) xenv.update(bpointer, BLOCKSIZE);
   }
   void decompress_block() {
     auto res = dtc.get_block_ptr();
     block_data = res.first;
     block_size = res.second;
     data_offset = 0;
+    if(qm.check_hash) xenv.update(block_data, block_size);
     // tout << "main thread decompress block " << (void *)block_data << " " << block_size << "\n" << std::flush;
   }
   void getBlockData(char* outp, uint64_t data_size) {
@@ -476,13 +244,7 @@ struct Data_Context_MT {
   void getShuffleBlockData(char* outp, uint64_t data_size, uint64_t bytesoftype) {
     if(data_size >= MIN_SHUFFLE_ELEMENTS) {
       if(data_size > shuffleblock.size()) shuffleblock.resize(data_size);
-      uint64_t shuffle_endblock = (data_size + data_offset)/BLOCKSIZE + dtc.blocks_queued;
-      dtc.blocks_processed.check_lt(shuffle_endblock);
-      // tout << "shuffle end is " << shuffle_endblock << " " << dtc.blocks_processed.cached_counter_val << "\n" << std::flush;
       getBlockData(reinterpret_cast<char*>(shuffleblock.data()), data_size);
-      while( dtc.blocks_processed.check_lt(shuffle_endblock) ) {
-        std::this_thread::yield();
-      }
       blosc_unshuffle(shuffleblock.data(), reinterpret_cast<uint8_t*>(outp), data_size, bytesoftype);
     } else if(data_size > 0) {
       getBlockData(outp, data_size);
@@ -500,15 +262,16 @@ struct Data_Context_MT {
       number_of_attributes = 0;
     }
     SEXP obj;
+    Protect_Tracker pt = Protect_Tracker();
     switch(obj_type) {
     case VECSXP: 
-      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len)); pt++;
       for(uint64_t i=0; i<r_array_len; i++) {
         SET_VECTOR_ELT(obj, i, processBlock());
       }
       break;
     case REALSXP:
-      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len)); pt++;
       if(qm.real_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8, 8);
       } else {
@@ -516,7 +279,7 @@ struct Data_Context_MT {
       }
       break;
     case INTSXP:
-      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len)); pt++;
       if(qm.int_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4, 4);
       } else {
@@ -524,7 +287,7 @@ struct Data_Context_MT {
       }
       break;
     case LGLSXP:
-      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len)); pt++;
       if(qm.lgl_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4, 4);
       } else {
@@ -532,7 +295,7 @@ struct Data_Context_MT {
       }
       break;
     case CPLXSXP:
-      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len)); pt++;
       if(qm.cplx_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16, 8);
       } else {
@@ -540,7 +303,7 @@ struct Data_Context_MT {
       }
       break;
     case RAWSXP:
-      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
       if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(RAW(obj)), r_array_len);
       break;
     case STRSXP:
@@ -574,13 +337,12 @@ struct Data_Context_MT {
             break;
             }
             ret->strings[i].resize(r_string_len);
-            getBlockData(&(ret->strings[i])[0], r_string_len); // don't need to wait!
+            getBlockData(&(ret->strings[i])[0], r_string_len);
           }
         }
-        obj = PROTECT(stdvec_string::Make(ret, true));
+        obj = PROTECT(stdvec_string::Make(ret, true)); pt++;
       } else {
-        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len));
-        uint64_t string_endblock;
+        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len)); pt++;
         for(uint64_t i=0; i<r_array_len; i++) {
           uint32_t r_string_len;
           cetype_t string_encoding = CE_NATIVE;
@@ -594,11 +356,7 @@ struct Data_Context_MT {
               temp_string.resize(r_string_len);
             }
             if(data_offset + r_string_len > BLOCKSIZE) {
-              string_endblock = (r_string_len + data_offset)/BLOCKSIZE + dtc.blocks_queued;
               getBlockData(&temp_string[0], r_string_len);
-              while( dtc.blocks_processed.check_lt(string_endblock) ) {
-                std::this_thread::yield();
-              }
             } else {
               getBlockData(&temp_string[0], r_string_len);
             }
@@ -609,10 +367,10 @@ struct Data_Context_MT {
       break;
     case S4SXP:
     {
-      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
       getBlockData(reinterpret_cast<char*>(RAW(obj_data)), r_array_len);
-      obj = PROTECT(unserializeFromRaw(obj_data));
-      UNPROTECT(2);
+      obj = PROTECT(unserializeFromRaw(obj_data)); pt++;
+      // UNPROTECT(2);
       return obj;
     }
     default: // also NILSXP
@@ -623,22 +381,13 @@ struct Data_Context_MT {
       for(uint64_t i=0; i<number_of_attributes; i++) {
         uint32_t r_string_len;
         cetype_t string_encoding;
-        uint64_t string_endblock;
         readStringHeader(r_string_len, string_encoding);
         std::string temp_attribute_string = std::string(r_string_len, '\0');
-        if(data_offset + r_string_len > BLOCKSIZE) {
-          string_endblock = (r_string_len + data_offset)/BLOCKSIZE + dtc.blocks_queued;
-          getBlockData(&temp_attribute_string[0], r_string_len);
-          while( dtc.blocks_processed.check_lt(string_endblock) ) {
-            std::this_thread::yield();
-          }
-        } else {
-          getBlockData(&temp_attribute_string[0], r_string_len);
-        }
+        getBlockData(&temp_attribute_string[0], r_string_len);
         Rf_setAttrib(obj, Rf_install(temp_attribute_string.data()), processBlock());
       }
     }
-    UNPROTECT(1);
+    // UNPROTECT(1);
     return std::move(obj);
   }
 };

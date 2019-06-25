@@ -24,13 +24,13 @@
 // de-serialization functions
 ////////////////////////////////////////////////////////////////
 
+template <class decompress_env> 
 struct Data_Context {
   std::ifstream & myFile;
-  bool use_alt_rep_bool;
-  
+  decompress_env denv;
+  xxhash_env xenv;
   QsMetadata qm;
-  decompress_fun decompFun;
-  cbound_fun cbFun;
+  bool use_alt_rep_bool;
   
   uint64_t number_of_blocks;
   std::vector<char> zblock;
@@ -40,21 +40,11 @@ struct Data_Context {
   uint64_t block_i;
   uint64_t block_size;
   std::string temp_string;
-
-  Data_Context(std::ifstream & mf, QsMetadata qm, bool use_alt_rep) : myFile(mf), use_alt_rep_bool(use_alt_rep) {
-    this->qm = qm;
-    if(qm.compress_algorithm == 0) {
-      decompFun = &ZSTD_decompress;
-      cbFun = &ZSTD_compressBound;
-    } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) { // algo == 1
-      decompFun = &LZ4_decompress_fun;
-      cbFun = &LZ4_compressBound_fun;
-    } else {
-      throw exception("invalid compression algorithm selected");
-    }
-    
+  
+  Data_Context(std::ifstream & mf, QsMetadata qm, bool use_alt_rep) : 
+    myFile(mf), denv(decompress_env()), xenv(xxhash_env()), qm(qm), use_alt_rep_bool(use_alt_rep) {
     number_of_blocks = readSizeFromFile8(myFile);
-    zblock = std::vector<char>(cbFun(BLOCKSIZE));
+    zblock = std::vector<char>(denv.compressBound(BLOCKSIZE));
     block = std::vector<char>(BLOCKSIZE);
     data_offset = 0;
     block_i = 0;
@@ -64,231 +54,12 @@ struct Data_Context {
   void readHeader(SEXPTYPE & object_type, uint64_t & r_array_len) {
     if(data_offset >= block_size) decompress_block();
     char* header = block.data();
-    unsigned char h5 = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xE0;
-    switch(h5) {
-    case numeric_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = REALSXP;
-      return;
-    case list_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = VECSXP;
-      return;
-    case integer_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = INTSXP;
-      return;
-    case logical_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = LGLSXP;
-      return;
-    case character_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = STRSXP;
-      return;
-    case attribute_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = ANYSXP;
-      return;
-    }
-    unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset];
-    switch(hd) {
-    case numeric_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = REALSXP;
-      return;
-    case numeric_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = REALSXP;
-      return;
-    case numeric_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = REALSXP;
-      return;
-    case numeric_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = REALSXP;
-      return;
-    case list_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = VECSXP;
-      return;
-    case list_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = VECSXP;
-      return;
-    case list_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = VECSXP;
-      return;
-    case list_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = VECSXP;
-      return;
-    case integer_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = INTSXP;
-      return;
-    case integer_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = INTSXP;
-      return;
-    case integer_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = INTSXP;
-      return;
-    case integer_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = INTSXP;
-      return;
-    case logical_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = LGLSXP;
-      return;
-    case logical_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = LGLSXP;
-      return;
-    case logical_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = LGLSXP;
-      return;
-    case logical_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = LGLSXP;
-      return;
-    case raw_header_32:
-      r_array_len = unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = RAWSXP;
-      return;
-    case raw_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = RAWSXP;
-      return;
-    case character_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = STRSXP;
-      return;
-    case character_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = STRSXP;
-      return;
-    case character_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = STRSXP;
-      return;
-    case character_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = STRSXP;
-      return;
-    case complex_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = CPLXSXP;
-      return;
-    case complex_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = CPLXSXP;
-      return;
-    case null_header:
-      r_array_len =  0;
-      data_offset += 1;
-      object_type = NILSXP;
-      return;
-    case attribute_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = ANYSXP;
-      return;
-    case attribute_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = ANYSXP;
-      return;
-    case nstype_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = S4SXP;
-      return;
-    case nstype_header_64:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = S4SXP;
-      return;
-    }
-    // additional types
-    throw exception("something went wrong (reading object header)");
+    readHeader_common(object_type, r_array_len, data_offset, header);
   }
   void readStringHeader(uint32_t & r_string_len, cetype_t & ce_enc) {
     if(data_offset >= block_size) decompress_block();
     char* header = block.data();
-    unsigned char enc = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xC0;
-    switch(enc) {
-    case string_enc_native:
-      ce_enc = CE_NATIVE; break;
-    case string_enc_utf8:
-      ce_enc = CE_UTF8; break;
-    case string_enc_latin1:
-      ce_enc = CE_LATIN1; break;
-    case string_enc_bytes:
-      ce_enc = CE_BYTES; break;
-    }
-    
-    if((reinterpret_cast<unsigned char*>(header)[data_offset] & 0x20) == string_header_5) {
-      r_string_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      return;
-    } else {
-      unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset] & 0x1F;
-      switch(hd) {
-      case string_header_8:
-        r_string_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-        data_offset += 2;
-        return;
-      case string_header_16:
-        r_string_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-        data_offset += 3;
-        return;
-      case string_header_32:
-        r_string_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-        data_offset += 5;
-        return;
-      case string_header_NA:
-        r_string_len = NA_STRING_LENGTH;
-        data_offset += 1;
-        return;
-      }
-    } 
-    throw exception("something went wrong (reading string header)");
+    readStringHeader_common(r_string_len, ce_enc, data_offset, header);
   }
   void decompress_direct(char* bpointer) {
     block_i++;
@@ -296,7 +67,8 @@ struct Data_Context {
     myFile.read(zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
     myFile.read(zblock.data(), zsize);
-    block_size = decompFun(bpointer, BLOCKSIZE, zblock.data(), zsize);
+    block_size = denv.decompress(bpointer, BLOCKSIZE, zblock.data(), zsize);
+    if(qm.check_hash) xenv.update(bpointer, BLOCKSIZE);
   }
   void decompress_block() {
     block_i++;
@@ -304,8 +76,9 @@ struct Data_Context {
     myFile.read(zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
     myFile.read(zblock.data(), zsize);
-    block_size = decompFun(block.data(), BLOCKSIZE, zblock.data(), zsize);
+    block_size = denv.decompress(block.data(), BLOCKSIZE, zblock.data(), zsize);
     data_offset = 0;
+    if(qm.check_hash) xenv.update(block.data(), block_size);
   }
   void getBlockData(char* outp, uint64_t data_size) {
     if(data_size <= block_size - data_offset) {
@@ -340,6 +113,7 @@ struct Data_Context {
     SEXPTYPE obj_type;
     uint64_t r_array_len;
     readHeader(obj_type, r_array_len);
+    // std::cout << obj_type << " " << r_array_len << "\n";
     uint64_t number_of_attributes;
     if(obj_type == ANYSXP) {
       number_of_attributes = r_array_len;
@@ -348,15 +122,16 @@ struct Data_Context {
       number_of_attributes = 0;
     }
     SEXP obj;
+    Protect_Tracker pt = Protect_Tracker();
     switch(obj_type) {
     case VECSXP: 
-      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len));  pt++;
       for(uint64_t i=0; i<r_array_len; i++) {
         SET_VECTOR_ELT(obj, i, processBlock());
       }
       break;
     case REALSXP:
-      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len));  pt++;
       if(qm.real_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8, 8);
       } else {
@@ -364,7 +139,7 @@ struct Data_Context {
       }
       break;
     case INTSXP:
-      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len));  pt++;
       if(qm.int_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4, 4);
       } else {
@@ -372,7 +147,7 @@ struct Data_Context {
       }
       break;
     case LGLSXP:
-      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len));  pt++;
       if(qm.lgl_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4, 4);
       } else {
@@ -380,7 +155,7 @@ struct Data_Context {
       }
       break;
     case CPLXSXP:
-      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));  pt++;
       if(qm.cplx_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16, 8);
       } else {
@@ -388,7 +163,7 @@ struct Data_Context {
       }
       break;
     case RAWSXP:
-      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len));  pt++;
       if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(RAW(obj)), r_array_len);
       break;
     case STRSXP:
@@ -419,15 +194,15 @@ struct Data_Context {
               break;
             default:
               ret->encodings[i] = 5;
-              break;
+            break;
             }
             ret->strings[i].resize(r_string_len);
             getBlockData(&(ret->strings[i])[0], r_string_len);
           }
         }
-        obj = PROTECT(stdvec_string::Make(ret, true));
+        obj = PROTECT(stdvec_string::Make(ret, true));  pt++;
       } else {
-        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len));
+        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len));  pt++;
         for(uint64_t i=0; i<r_array_len; i++) {
           uint32_t r_string_len;
           cetype_t string_encoding = CE_NATIVE;
@@ -448,10 +223,10 @@ struct Data_Context {
       break;
     case S4SXP:
     {
-      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len));  pt++;
       getBlockData(reinterpret_cast<char*>(RAW(obj_data)), r_array_len);
-      obj = PROTECT(unserializeFromRaw(obj_data));
-      UNPROTECT(2);
+      obj = PROTECT(unserializeFromRaw(obj_data));  pt++;
+      // UNPROTECT(2);
       return obj;
     }
     default: // also NILSXP
@@ -471,7 +246,7 @@ struct Data_Context {
         Rf_setAttrib(obj, Rf_install(temp_attribute_string.data()), processBlock());
       }
     }
-    UNPROTECT(1);
+    // UNPROTECT(1);
     return std::move(obj);
   }
 };

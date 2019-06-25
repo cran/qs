@@ -69,7 +69,7 @@ struct Data_Inspect_Context {
       decompFun = &LZ4_decompress_fun;
       cbFun = &LZ4_compressBound_fun;
     } else {
-      throw exception("invalid compression algorithm selected");
+      throw std::runtime_error("invalid compression algorithm selected");
     }
     number_of_blocks = readSizeFromFile8(myFile);
     zblock = std::vector<char>(cbFun(BLOCKSIZE));

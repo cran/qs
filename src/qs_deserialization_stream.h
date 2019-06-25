@@ -3,6 +3,8 @@
 struct ZSTD_streamRead {
   std::ifstream & myFile;
   QsMetadata qm;
+  uint64_t readable_bytes;
+  uint64_t bytes_read;
   uint64_t minblocksize;
   uint64_t maxblocksize;
   uint64_t decompressed_bytes_total;
@@ -12,8 +14,9 @@ struct ZSTD_streamRead {
   ZSTD_inBuffer zin;
   ZSTD_outBuffer zout;
   ZSTD_DStream* zds;
+  xxhash_env xenv;
   ZSTD_streamRead(std::ifstream & mf, QsMetadata qm, uint64_t dbt) : 
-    myFile(mf), qm(qm), decompressed_bytes_total(dbt) {
+    myFile(mf), qm(qm), decompressed_bytes_total(dbt), xenv(xxhash_env()) {
     size_t outblocksize = 4*ZSTD_DStreamOutSize();
     size_t inblocksize = ZSTD_DStreamInSize();
     decompressed_bytes_read = 0;
@@ -29,14 +32,47 @@ struct ZSTD_streamRead {
     zin.size = 0;
     zin.pos = 0;
     zin.src = inblock.data();
+    
+    // need to reserve some bytes for the hash check at the end
+    // ref https://stackoverflow.com/questions/22984956/tellg-function-give-wrong-size-of-file
+    std::streampos current = myFile.tellg();
+    myFile.ignore(std::numeric_limits<std::streamsize>::max());
+    readable_bytes = myFile.gcount();
+    myFile.seekg(current);
+    // std::cout << readable_bytes << std::endl;
+    if(qm.check_hash) readable_bytes -= 4;
+    // std::cout << readable_bytes << std::endl;
+    bytes_read = 0;
   }
+  //file at end of reserve
+  bool file_eor() {
+    return bytes_read >= readable_bytes;
+  }
+  uint64_t file_read_reserve(char* data, uint64_t length) {
+    if(bytes_read + length > readable_bytes) {
+      uint64_t new_len = readable_bytes - bytes_read;
+      myFile.read(data, new_len);
+      bytes_read = readable_bytes;
+      // std::cout << "new len, bytes_read: " << new_len << " " << bytes_read << std::endl;
+      return new_len;
+    } else {
+      myFile.read(data, length);
+      bytes_read += length;
+      uint64_t gco = myFile.gcount();
+      // std::cout << "gcount, length: " << gco << " " << length << std::endl;
+      return gco;
+    }
+  }
+  
   ~ZSTD_streamRead() {
     ZSTD_freeDStream(zds);
   }
   inline void ZSTD_decompressStream_count(ZSTD_DStream* zds, ZSTD_outBuffer * zout, ZSTD_inBuffer * zin) {
     uint64_t temp = zout->pos;
-    ZSTD_decompressStream(zds, zout, zin);
+    size_t return_value = ZSTD_decompressStream(zds, zout, zin);
+    if(ZSTD_isError(return_value)) throw std::runtime_error("zstd stream decompression error");
     decompressed_bytes_read += zout->pos - temp;
+    xenv.update(reinterpret_cast<char*>(zout->dst)+temp, zout->pos - temp);
   }
   void getBlock(uint64_t & blocksize, uint64_t & bytesused) {
     if(decompressed_bytes_read >= decompressed_bytes_total) return;
@@ -51,9 +87,9 @@ struct ZSTD_streamRead {
     while(zout.pos < minblocksize) {
       if(zin.pos < zin.size) {
         ZSTD_decompressStream_count(zds, &zout, &zin);
-      } else if(! myFile.eof()) {
-        myFile.read(inblock.data(), inblock.size());
-        size_t bytes_read = myFile.gcount();
+      } else if(! file_eor()) {
+        uint64_t bytes_read = file_read_reserve(inblock.data(), inblock.size());
+        // size_t bytes_read = myFile.gcount();
         if(bytes_read == 0) continue; // EOF
         zin.pos = 0;
         zin.size = bytes_read;
@@ -82,9 +118,8 @@ struct ZSTD_streamRead {
         if(zin.pos < zin.size) {
           ZSTD_decompressStream_count(zds, &zout, &zin);
           // std::cout << zin.pos << "/" << zin.size << " zin " << zout.pos << "/" << zout.size << " zout\n";
-        } else if(! myFile.eof()) {
-          myFile.read(inblock.data(), minblocksize);
-          size_t bytes_read = myFile.gcount();
+        } else if(! file_eor()) {
+          uint64_t bytes_read = file_read_reserve(inblock.data(), minblocksize);
           if(bytes_read == 0) continue; // EOF
           zin.pos = 0;
           zin.size = bytes_read;
@@ -94,7 +129,10 @@ struct ZSTD_streamRead {
           size_t current_pos = zout.pos;
           ZSTD_decompressStream_count(zds, &zout, &zin);
           // std::cout << zin.pos << "/" << zin.size << " zin " << zout.pos << "/" << zout.size << " zout flush\n";
-          if(zout.pos == current_pos) break; // no more data, also we should throw an error as more data was expected
+          if(zout.pos == current_pos) {
+            Rcpp::Rcerr << "End of file reached, but more data was expected (object may be incomplete)" << std::endl;
+            break; // no more data, also we should throw an error as more data was expected
+          }
         }
       }
       bytesused = 0;
@@ -110,97 +148,6 @@ struct ZSTD_streamRead {
     }
   }
 };
-
-// struct brotli_streamRead {
-//   std::ifstream & myFile;
-//   QsMetadata qm;
-//   uint64_t minblocksize;
-//   uint64_t maxblocksize;
-//   uint64_t decompressed_bytes_total;
-//   std::vector<char> outblock;
-//   std::vector<char> inblock;
-//   size_t available_in;
-//   size_t available_out;
-//   size_t total_out;
-//   const uint8_t * next_in;
-//   uint8_t * next_out;
-//   BrotliDecoderState* zds;
-//   brotli_streamRead(std::ifstream & mf, QsMetadata qm, uint64_t dbt) : 
-//     myFile(mf), qm(qm), decompressed_bytes_total(dbt) {
-//     size_t outblocksize = 2*BLOCKSIZE;
-//     size_t inblocksize = 2*BLOCKSIZE;
-//     outblock = std::vector<char>(outblocksize);
-//     inblock = std::vector<char>(inblocksize);
-//     minblocksize = BLOCKSIZE / 2;
-//     maxblocksize = 2*BLOCKSIZE;
-//     available_in = 0;
-//     available_out = 0;
-//     total_out = 0;
-//     next_in = reinterpret_cast<uint8_t*>(inblock.data());
-//     next_out = reinterpret_cast<uint8_t*>(outblock.data());
-//     zds = BrotliDecoderCreateInstance(NULL, NULL, NULL);
-//   }
-//   ~brotli_streamRead() {
-//     BrotliDecoderDestroyInstance(zds);
-//   }
-//   void getBlock(uint64_t & blocksize, uint64_t & bytesused) {
-//     if(total_out >= decompressed_bytes_total) return;
-//     if(blocksize > bytesused) {
-//       std::memcpy(outblock.data(), outblock.data() + bytesused, blocksize - bytesused); 
-//       available_out = outblock.size() - (blocksize - bytesused);
-//       next_out = reinterpret_cast<uint8_t*>(outblock.data()) + (blocksize - bytesused);
-//     } else {
-//       available_out = outblock.size();
-//       next_out = reinterpret_cast<uint8_t*>(outblock.data());
-//     }
-//     while(outblock.size() - available_out < minblocksize) {
-//       if(available_in > 0) {
-//         BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//       } else if(! myFile.eof()) {
-//         myFile.read(inblock.data(), inblock.size());
-//         available_in = myFile.gcount();
-//         next_in = reinterpret_cast<uint8_t*>(inblock.data());
-//         if(available_in == 0) continue; // EOF
-//         BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//       } else {
-//         BrotliDecoderResult ret = BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//         if( ret == BROTLI_DECODER_RESULT_SUCCESS ) break; // no more data
-//       }
-//     }
-//     blocksize = outblock.size() - available_out;
-//     bytesused = 0;
-//   }
-//   void copyData(uint64_t & blocksize, uint64_t & bytesused, char* dst, uint64_t dst_size) {
-//     if(dst_size > blocksize - bytesused) {
-//       std::memcpy(dst, outblock.data() + bytesused, blocksize - bytesused);
-//       next_out = reinterpret_cast<uint8_t*>(dst) + blocksize - bytesused;
-//       available_out = dst_size - (blocksize - bytesused);
-//       while(available_out > 0) {
-//         if(available_in > 0) {
-//           BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//         } else if(! myFile.eof()) {
-//           myFile.read(inblock.data(), inblock.size());
-//           available_in = myFile.gcount();
-//           next_in = reinterpret_cast<uint8_t*>(inblock.data());
-//           if(available_in == 0) continue; // EOF
-//           BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//         } else {
-//           BrotliDecoderResult ret = BrotliDecoderDecompressStream(zds, &available_in, &next_in, &available_out, &next_out, &total_out);
-//           if( ret == BROTLI_DECODER_RESULT_SUCCESS ) break; // no more data
-//         }
-//       }
-//       bytesused = 0;
-//       blocksize = 0;
-//       getBlock(blocksize, bytesused);
-//     } else {
-//       std::memcpy(dst, outblock.data() + bytesused, dst_size);
-//       bytesused += dst_size;
-//       if(blocksize - bytesused < BLOCKRESERVE) {
-//         getBlock(blocksize, bytesused);
-//       }
-//     }
-//   }
-// };
 
 template <class DestreamClass> 
 struct Data_Context_Stream {
@@ -219,238 +166,19 @@ struct Data_Context_Stream {
     data_ptr = dsc.outblock.data();
     temp_string = std::string(256, '\0');
   }
-  void readHeader(SEXPTYPE & object_type, uint64_t & r_array_len) {
-    if(data_offset + BLOCKRESERVE >= block_size) dsc.getBlock(block_size, data_offset);
-    char* header = data_ptr;
-    unsigned char h5 = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xE0;
-    switch(h5) {
-    case numeric_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = REALSXP;
-      return;
-    case list_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = VECSXP;
-      return;
-    case integer_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = INTSXP;
-      return;
-    case logical_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = LGLSXP;
-      return;
-    case character_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = STRSXP;
-      return;
-    case attribute_header_5:
-      r_array_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      object_type = ANYSXP;
-      return;
-    }
-    unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset];
-    switch(hd) {
-    case numeric_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = REALSXP;
-      return;
-    case numeric_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = REALSXP;
-      return;
-    case numeric_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = REALSXP;
-      return;
-    case numeric_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = REALSXP;
-      return;
-    case list_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = VECSXP;
-      return;
-    case list_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = VECSXP;
-      return;
-    case list_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = VECSXP;
-      return;
-    case list_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = VECSXP;
-      return;
-    case integer_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = INTSXP;
-      return;
-    case integer_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = INTSXP;
-      return;
-    case integer_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = INTSXP;
-      return;
-    case integer_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = INTSXP;
-      return;
-    case logical_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = LGLSXP;
-      return;
-    case logical_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = LGLSXP;
-      return;
-    case logical_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = LGLSXP;
-      return;
-    case logical_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = LGLSXP;
-      return;
-    case raw_header_32:
-      r_array_len = unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = RAWSXP;
-      return;
-    case raw_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = RAWSXP;
-      return;
-    case character_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = STRSXP;
-      return;
-    case character_header_16:
-      r_array_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-      data_offset += 3;
-      object_type = STRSXP;
-      return;
-    case character_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = STRSXP;
-      return;
-    case character_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = STRSXP;
-      return;
-    case complex_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = CPLXSXP;
-      return;
-    case complex_header_64:
-      r_array_len =  unaligned_cast<uint64_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = CPLXSXP;
-      return;
-    case null_header:
-      r_array_len =  0;
-      data_offset += 1;
-      object_type = NILSXP;
-      return;
-    case attribute_header_8:
-      r_array_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-      data_offset += 2;
-      object_type = ANYSXP;
-      return;
-    case attribute_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = ANYSXP;
-      return;
-    case nstype_header_32:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 5;
-      object_type = S4SXP;
-      return;
-    case nstype_header_64:
-      r_array_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-      data_offset += 9;
-      object_type = S4SXP;
-      return;
-    }
-    // additional types
-    throw exception("something went wrong (reading object header)");
-  }
-  void readStringHeader(uint32_t & r_string_len, cetype_t & ce_enc) {
-    if(data_offset + BLOCKRESERVE >= block_size) dsc.getBlock(block_size, data_offset);
-    char* header = data_ptr;
-    unsigned char enc = reinterpret_cast<unsigned char*>(header)[data_offset] & 0xC0;
-    switch(enc) {
-    case string_enc_native:
-      ce_enc = CE_NATIVE; break;
-    case string_enc_utf8:
-      ce_enc = CE_UTF8; break;
-    case string_enc_latin1:
-      ce_enc = CE_LATIN1; break;
-    case string_enc_bytes:
-      ce_enc = CE_BYTES; break;
-    }
-    
-    if((reinterpret_cast<unsigned char*>(header)[data_offset] & 0x20) == string_header_5) {
-      r_string_len = *reinterpret_cast<uint8_t*>(header+data_offset) & 0x1F ;
-      data_offset += 1;
-      return;
-    } else {
-      unsigned char hd = reinterpret_cast<unsigned char*>(header)[data_offset] & 0x1F;
-      switch(hd) {
-      case string_header_8:
-        r_string_len =  *reinterpret_cast<uint8_t*>(header+data_offset+1) ;
-        data_offset += 2;
-        return;
-      case string_header_16:
-        r_string_len = unaligned_cast<uint16_t>(header, data_offset+1) ;
-        data_offset += 3;
-        return;
-      case string_header_32:
-        r_string_len =  unaligned_cast<uint32_t>(header, data_offset+1) ;
-        data_offset += 5;
-        return;
-      case string_header_NA:
-        r_string_len = NA_STRING_LENGTH;
-        data_offset += 1;
-        return;
-      }
-    } 
-    throw exception("something went wrong (reading string header)");
+  void getBlock(uint64_t & block_size, uint64_t & data_offset) {
+    dsc.getBlock(block_size, data_offset);
   }
   void getBlockData(char* outp, uint64_t data_size) {
-    // std::cout << data_size << " get block\n";
     dsc.copyData(block_size, data_offset, outp, data_size);
+  }
+  void readHeader(SEXPTYPE & object_type, uint64_t & r_array_len) {
+    if(data_offset + BLOCKRESERVE >= block_size) getBlock(block_size, data_offset);
+    readHeader_common(object_type, r_array_len, data_offset, data_ptr);
+  }
+  void readStringHeader(uint32_t & r_string_len, cetype_t & ce_enc) {
+    if(data_offset + BLOCKRESERVE >= block_size) getBlock(block_size, data_offset);
+    readStringHeader_common(r_string_len, ce_enc, data_offset, data_ptr);
   }
   void getShuffleBlockData(char* outp, uint64_t data_size, uint64_t bytesoftype) {
     // std::cout << data_size << " get shuffle block\n";
@@ -475,15 +203,16 @@ struct Data_Context_Stream {
       number_of_attributes = 0;
     }
     SEXP obj;
+    Protect_Tracker pt = Protect_Tracker();
     switch(obj_type) {
     case VECSXP: 
-      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(VECSXP, r_array_len)); pt++;
       for(uint64_t i=0; i<r_array_len; i++) {
         SET_VECTOR_ELT(obj, i, processBlock());
       }
       break;
     case REALSXP:
-      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(REALSXP, r_array_len)); pt++;
       if(qm.real_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(REAL(obj)), r_array_len*8, 8);
       } else {
@@ -491,7 +220,7 @@ struct Data_Context_Stream {
       }
       break;
     case INTSXP:
-      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(INTSXP, r_array_len)); pt++;
       if(qm.int_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(INTEGER(obj)), r_array_len*4, 4);
       } else {
@@ -499,7 +228,7 @@ struct Data_Context_Stream {
       }
       break;
     case LGLSXP:
-      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(LGLSXP, r_array_len)); pt++;
       if(qm.lgl_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(LOGICAL(obj)), r_array_len*4, 4);
       } else {
@@ -507,7 +236,7 @@ struct Data_Context_Stream {
       }
       break;
     case CPLXSXP:
-      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(CPLXSXP, r_array_len)); pt++;
       if(qm.cplx_shuffle) {
         getShuffleBlockData(reinterpret_cast<char*>(COMPLEX(obj)), r_array_len*16, 8);
       } else {
@@ -515,7 +244,7 @@ struct Data_Context_Stream {
       }
       break;
     case RAWSXP:
-      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      obj = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
       if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(RAW(obj)), r_array_len);
       break;
     case STRSXP:
@@ -552,9 +281,9 @@ struct Data_Context_Stream {
             getBlockData(&(ret->strings[i])[0], r_string_len);
           }
         }
-        obj = PROTECT(stdvec_string::Make(ret, true));
+        obj = PROTECT(stdvec_string::Make(ret, true)); pt++;
       } else {
-        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len));
+        obj = PROTECT(Rf_allocVector(STRSXP, r_array_len)); pt++;
         for(uint64_t i=0; i<r_array_len; i++) {
           uint32_t r_string_len;
           cetype_t string_encoding = CE_NATIVE;
@@ -575,10 +304,10 @@ struct Data_Context_Stream {
       break;
     case S4SXP:
     {
-      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len));
+      SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
       getBlockData(reinterpret_cast<char*>(RAW(obj_data)), r_array_len);
-      obj = PROTECT(unserializeFromRaw(obj_data));
-      UNPROTECT(2);
+      obj = PROTECT(unserializeFromRaw(obj_data)); pt++;
+      // UNPROTECT(2);
       return obj;
     }
     default: // also NILSXP
@@ -598,7 +327,7 @@ struct Data_Context_Stream {
         Rf_setAttrib(obj, Rf_install(temp_attribute_string.data()), processBlock());
       }
     }
-    UNPROTECT(1);
+    // UNPROTECT(1);
     return std::move(obj);
   }
 };

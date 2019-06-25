@@ -19,7 +19,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 */
 
 #include "qs_common.h"
-#include "qs_inspect.h"
+// #include "qs_inspect.h"
 #include "qs_serialization.h"
 #include "qs_mt_serialization.h"
 #include "qs_deserialization.h"
@@ -50,127 +50,246 @@ bool is_big_endian()
 }
 
 // [[Rcpp::export]]
-void c_qsave(RObject x, std::string file, std::string preset="balanced", std::string algorithm = "lz4", int compress_level=1, int shuffle_control=15, int nthreads=1) {
+void c_qsave(SEXP x, std::string file, std::string preset, std::string algorithm, int compress_level, int shuffle_control, bool check_hash, int nthreads) {
   std::ofstream myFile(file.c_str(), std::ios::out | std::ios::binary);
   if(!myFile) {
-    throw exception("Failed to open file");
+    throw std::runtime_error("Failed to open file");
   }
-  QsMetadata qm(preset, algorithm, compress_level, shuffle_control);
-  qm.writeToFile(myFile, shuffle_control);
+  QsMetadata qm(preset, algorithm, compress_level, shuffle_control, check_hash);
+  qm.writeToFile(myFile);
   writeSizeToFile8(myFile, 0); // number of compressed blocks
-  if(algorithm == "zstd_stream") {
-    if(nthreads > 1) Rcpp::Rcerr << "zstd_stream currently supports only 1 thread" << std::endl;
+  if(qm.compress_algorithm == static_cast<unsigned char>(compalg::zstd_stream)) {
+    // if(nthreads > 1) Rcpp::Rcerr << "zstd_stream currently supports only 1 thread" << std::endl;
     ZSTD_streamWrite sw(myFile, qm);
     CompressBufferStream<ZSTD_streamWrite> vbuf(sw, qm);
     vbuf.pushObj(x);
     sw.flush();
+    // std::cout << vbuf.sobj.xenv.digest() << std::endl;
+    if(qm.check_hash) writeSizeToFile4(myFile, vbuf.sobj.xenv.digest());
     myFile.seekp(4);
     writeSizeToFile8(myFile, sw.bytes_written);
   } else {
     if(nthreads <= 1) {
-      CompressBuffer vbuf(myFile, qm);
-      vbuf.appendObj(x); // this should be vbuf.append(x); TO DO: rewrite into class structure
-      vbuf.flush();
-      myFile.seekp(4);
-      writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      if(qm.compress_algorithm == static_cast<unsigned char>(compalg::zstd)) {
+        CompressBuffer<zstd_compress_env> vbuf(myFile, qm);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else if(qm.compress_algorithm == static_cast<unsigned char>(compalg::lz4)) {
+        CompressBuffer<lz4_compress_env> vbuf(myFile, qm);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else if(qm.compress_algorithm == static_cast<unsigned char>(compalg::lz4hc)) {
+        CompressBuffer<lz4hc_compress_env> vbuf(myFile, qm);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else {
+        throw std::runtime_error("invalid compression algorithm selected");
+      }
     } else {
-      CompressBuffer_MT vbuf(&myFile, qm, nthreads);
-      vbuf.appendObj(x); // this should be vbuf.append(x); TO DO: rewrite into class structure
-      vbuf.flush();
-      vbuf.ctc.finish();
-      myFile.seekp(4);
-      writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      if(qm.compress_algorithm == static_cast<unsigned char>(compalg::zstd)) {
+        CompressBuffer_MT<zstd_compress_env> vbuf(&myFile, qm, nthreads);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        vbuf.ctc.finish();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else if(qm.compress_algorithm == static_cast<unsigned char>(compalg::lz4)) {
+        CompressBuffer_MT<lz4_compress_env> vbuf(&myFile, qm, nthreads);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        vbuf.ctc.finish();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else if(qm.compress_algorithm == static_cast<unsigned char>(compalg::lz4hc)) {
+        CompressBuffer_MT<lz4hc_compress_env> vbuf(&myFile, qm, nthreads);
+        vbuf.pushObj(x);
+        vbuf.flush();
+        vbuf.ctc.finish();
+        // std::cout << vbuf.xenv.digest() << std::endl;
+        if(qm.check_hash) writeSizeToFile4(myFile, vbuf.xenv.digest());
+        myFile.seekp(4);
+        writeSizeToFile8(myFile, vbuf.number_of_blocks);
+      } else {
+        throw std::runtime_error("invalid compression algorithm selected");
+      }
     }
   }
 }
 
-// [[Rcpp::export]]
-bool c_qinspect(std::string file) {
-  std::ifstream myFile(file, std::ios::in | std::ios::binary);
-  if(!myFile) {
-    throw exception("Failed to open file");
-  }
-  QsMetadata qm(myFile);
-  if(qm.compress_algorithm == 3) {
-    uint64_t totalsize = readSizeFromFile8(myFile);
-    return inspect_stream_zstd(myFile, totalsize);
-  } else {
-    Data_Inspect_Context dc(myFile, qm);
-    return dc.inspectData();
-  }
-}
+// deprecated 0.16.3 -- checks performed within qread directly
+// bool c_qinspect(std::string file, bool verbose) {
+//   std::ifstream myFile(file, std::ios::in | std::ios::binary);
+//   if(!myFile) {
+//     throw std::runtime_error("Failed to open file");
+//   }
+//   QsMetadata qm(myFile);
+//   if(qm.compress_algorithm == 3) {
+//     uint64_t totalsize = readSizeFromFile8(myFile);
+//     return inspect_stream_zstd(myFile, totalsize);
+//   } else {
+//     Data_Inspect_Context dc(myFile, qm);
+//     return dc.inspectData();
+//     validate_hash(qm, myFile, dc.xenv.digest());
+//   }
+// }
 
 // [[Rcpp::export]]
-SEXP c_qread(std::string file, bool use_alt_rep=false, bool inspect=false, int nthreads=1) {
-  if(inspect) {
-    bool fcheck = c_qinspect(file);
-    if(!fcheck) throw exception("File inspection failed");
-  }
+SEXP c_qread(std::string file, bool use_alt_rep, bool strict, int nthreads) {
   std::ifstream myFile(file, std::ios::in | std::ios::binary);
   if(!myFile) {
-    throw exception("Failed to open file");
+    throw std::runtime_error("Failed to open file");
   }
   QsMetadata qm(myFile);
   if(qm.compress_algorithm == 3) { // zstd_stream
     uint64_t totalsize = readSizeFromFile8(myFile);
     ZSTD_streamRead sr(myFile, qm, totalsize);
-    Data_Context_Stream<ZSTD_streamRead> dc(sr, qm, false);
-    return dc.processBlock();
+    Data_Context_Stream<ZSTD_streamRead> dc(sr, qm, use_alt_rep);
+    // std::cout << dc.xenv.digest() << std::endl;
+    SEXP ret = dc.processBlock();
+    validate_hash(qm, myFile, dc.dsc.xenv.digest(), strict);
+    return ret;
   } else {
     if(nthreads <= 1) {
-      Data_Context dc(myFile, qm, use_alt_rep);
-      return dc.processBlock();
+      if(qm.compress_algorithm == 0) {
+        Data_Context<zstd_decompress_env> dc(myFile, qm, use_alt_rep);
+        // std::cout << dc.xenv.digest() << std::endl;
+        SEXP ret = dc.processBlock();
+        validate_hash(qm, myFile, dc.xenv.digest(), strict);
+        return ret;
+      } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) {
+        Data_Context<lz4_decompress_env> dc(myFile, qm, use_alt_rep);
+        SEXP ret = dc.processBlock();
+        validate_hash(qm, myFile, dc.xenv.digest(), strict);
+        return ret;
+      } else {
+        throw std::runtime_error("Invalid compression algorithm in file");
+      }
     } else {
-      Data_Context_MT dc(&myFile, qm, use_alt_rep, nthreads);
-      SEXP ret = PROTECT( dc.processBlock() ); // is protect unnecessary since we aren't calling any R function before return?
-      dc.dtc.finish();
-      UNPROTECT(1);
-      return ret;
+      if(qm.compress_algorithm == 0) {
+        Data_Context_MT<zstd_decompress_env> dc(&myFile, qm, use_alt_rep, nthreads);
+        SEXP ret = dc.processBlock(); // is protect unnecessary since we aren't calling any R function before return?
+        dc.dtc.finish();
+        validate_hash(qm, myFile, dc.xenv.digest(), strict);
+        return ret;
+      } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) {
+        Data_Context_MT<lz4_decompress_env> dc(&myFile, qm, use_alt_rep, nthreads);
+        SEXP ret = dc.processBlock(); // is protect unnecessary since we aren't calling any R function before return?
+        dc.dtc.finish();
+        validate_hash(qm, myFile, dc.xenv.digest(), strict);
+        return ret;
+      } else {
+        throw std::runtime_error("Invalid compression algorithm in file");
+      }
     }
   }
 }
 
 // [[Rcpp::export]]
 RObject c_qdump(std::string file) {
-  std::ifstream myFile(file.c_str(), std::ios::in | std::ios::binary);
+  std::ifstream myFile(file, std::ios::in | std::ios::binary);
   if(!myFile) {
-    throw exception("Failed to open file");
+    throw std::runtime_error("Failed to open file");
   }
-  std::array<unsigned char,4> reserve_bits;
-  myFile.read(reinterpret_cast<char*>(reserve_bits.data()),4);
-  char sys_endian = is_big_endian() ? 1 : 0;
-  if(reserve_bits[3] != sys_endian) throw exception("Endian of system doesn't match file endian");
-  
-  unsigned char algo_control = reserve_bits[2];
-  decompress_fun decompFun;
-  cbound_fun cbFun;
-  int algo = algo_control & 0x10 ? 1 : 0;
-  if(algo == 0) {
-    decompFun = &ZSTD_decompress;
-    cbFun = &ZSTD_compressBound;
-  } else { // algo == 1
-    decompFun = &LZ4_decompress_fun;
-    cbFun = &LZ4_compressBound_fun;
+  QsMetadata qm(myFile);
+  List outvec;
+  dumpMetadata(outvec, qm);
+  uint64_t totalsize = readSizeFromFile8(myFile);
+  std::streampos current = myFile.tellg();
+  myFile.ignore(std::numeric_limits<std::streamsize>::max());
+  uint64_t readable_bytes = myFile.gcount();
+  myFile.seekg(current);
+  if(qm.compress_algorithm == 3) { // zstd_stream
+    if(qm.check_hash) readable_bytes -= 4;
+    RawVector input(readable_bytes);
+    RawVector output(totalsize);
+    char* inp = reinterpret_cast<char*>(RAW(input));
+    char* outp = reinterpret_cast<char*>(RAW(output));
+    myFile.read(inp, readable_bytes);
+    auto zstream = zstd_decompress_stream_simple(outp, totalsize, inp, readable_bytes);
+    bool is_error = zstream.decompress();
+    uint32_t computed_hash = XXH32(outp, totalsize, XXH_SEED);
+    
+    // append results
+    outvec["readable_bytes"] = std::to_string(readable_bytes);
+    outvec["decompressed_size"] = std::to_string(totalsize);
+    outvec["computed_hash"] = std::to_string(computed_hash);
+    if(qm.check_hash) {
+      uint32_t recorded_hash = readSizeFromFile4(myFile);
+      outvec["recorded_hash"] = std::to_string(recorded_hash);
+    }
+    outvec["compressed_data"] = input;
+    outvec["uncompressed_data"] = output;
+    if(is_error) {
+      outvec["error"] = "decompression_error";
+    }
+  } else if(qm.compress_algorithm == 0 || qm.compress_algorithm == 1 || qm.compress_algorithm == 2) {
+    decompress_fun dfun;
+    cbound_fun cbfun;
+    iserror_fun errfun;
+    if(qm.compress_algorithm == 0) {
+      dfun = ZSTD_decompress;
+      cbfun = ZSTD_compressBound;
+      errfun = ZSTD_isError;
+    } else {
+      dfun = LZ4_decompress_fun;
+      cbfun = LZ4_compressBound_fun;
+      errfun = LZ4_isError_fun;
+    }
+    if(qm.check_hash) readable_bytes -= 4;
+    std::vector<char> zblock(cbfun(BLOCKSIZE));
+    std::vector<char> block(BLOCKSIZE);
+    List output = List(totalsize);
+    List input = List(totalsize);
+    IntegerVector block_sizes(totalsize);
+    IntegerVector zblock_sizes(totalsize);
+    xxhash_env xenv = xxhash_env();
+    for(uint64_t i=0; i<totalsize; i++) {
+      uint64_t zsize = readSizeFromFile4(myFile);
+      if(static_cast<uint64_t>(myFile.gcount()) != 4) break;
+      myFile.read(zblock.data(), zsize);
+      if(static_cast<uint64_t>(myFile.gcount()) != zsize) break;
+      uint64_t block_size = dfun(block.data(), BLOCKSIZE, zblock.data(), zsize);
+      if(!errfun(block_size)) {
+        xenv.update(block.data(), block_size);
+        output[i] = RawVector(block.begin(), block.begin() + block_size);
+        input[i] = RawVector(zblock.begin(), zblock.begin() + zsize);
+        zblock_sizes[i] = zsize;
+        block_sizes[i] = block_size;
+      }
+    }
+    // append results
+    outvec["readable_bytes"] = std::to_string(readable_bytes);
+    outvec["number_of_blocks"] = std::to_string(totalsize);
+    outvec["compressed_block_sizes"] = zblock_sizes;
+    outvec["decompressed_block_sizes"] = block_sizes;
+    outvec["computed_hash"] = std::to_string(xenv.digest());
+    if(qm.check_hash) {
+      uint32_t recorded_hash = readSizeFromFile4(myFile);
+      outvec["recorded_hash"] = std::to_string(recorded_hash);
+    }
+    outvec["compressed_data"] = input;
+    outvec["uncompressed_data"] = output;
+  } else {
+    outvec["error"] = "unknown compression";
   }
-  
-  uint64_t number_of_blocks = readSizeFromFile8(myFile);
-  std::vector< std::pair<char*, uint64_t> > block_pointers(number_of_blocks);
-  std::array<char,4> zsize_ar;
-  uint64_t block_size;
-  uint64_t zsize;
-  std::vector<char> zblock(cbFun(BLOCKSIZE));
-  std::vector<char> block(BLOCKSIZE);
-  List ret = List(number_of_blocks);
-  for(uint64_t i=0; i<number_of_blocks; i++) {
-    myFile.read(zsize_ar.data(), 4);
-    zsize = unaligned_cast<uint32_t>(zsize_ar.data(),0);
-    myFile.read(zblock.data(), zsize);
-    block_size = decompFun(block.data(), BLOCKSIZE, zblock.data(), zsize);
-    ret[i] = RawVector(block.begin(), block.begin() + block_size);
-  }
-  return ret;
+  return outvec;
 }
-
 
 // void qs_use_alt_rep(bool s) {
 //   use_alt_rep_bool = s;
@@ -207,7 +326,7 @@ int lz4_compress_bound(int size) {
 
 // [[Rcpp::export]]
 std::vector<unsigned char> zstd_compress_raw(RawVector x, int compress_level) {
-  if(compress_level > 22 || compress_level < -50) throw exception("compress_level must be an integer between -50 and 22");
+  if(compress_level > 22 || compress_level < -50) throw std::runtime_error("compress_level must be an integer between -50 and 22");
   uint64_t zsize = ZSTD_compressBound(x.size());
   char* xdata = reinterpret_cast<char*>(RAW(x));
   std::vector<unsigned char> ret(zsize);
@@ -230,7 +349,7 @@ RawVector zstd_decompress_raw(RawVector x) {
 
 // [[Rcpp::export]]
 std::vector<unsigned char> lz4_compress_raw(RawVector x, int compress_level) {
-  if(compress_level < 1) throw exception("compress_level must be an integer greater than 1");
+  if(compress_level < 1) throw std::runtime_error("compress_level must be an integer greater than 1");
   uint64_t zsize = LZ4_compressBound(x.size());
   char* xdata = reinterpret_cast<char*>(RAW(x));
   std::vector<unsigned char> ret(zsize);
@@ -258,7 +377,7 @@ std::vector<unsigned char> lz4_decompress_raw(RawVector x) {
       break;
     }
   }
-  if(decomp < 0) throw exception("lz4 decompression failed");
+  if(decomp < 0) throw std::runtime_error("lz4 decompression failed");
   ret.resize(decomp);
   return ret;
 }
@@ -266,13 +385,13 @@ std::vector<unsigned char> lz4_decompress_raw(RawVector x) {
 // [[Rcpp::export]]
 std::vector<unsigned char> blosc_shuffle_raw(std::vector<uint8_t> x, int bytesofsize) {
 #if defined (__AVX2__)
-  Rcout << "AVX2" << std::endl;
+  Rcpp::Rcerr << "AVX2" << std::endl;
 #elif defined (__SSE2__)
-  Rcout << "SSE2" << std::endl;
+  Rcpp::Rcerr << "SSE2" << std::endl;
 #else
-  Rcout << "no SIMD" << std::endl;
+  Rcpp::Rcerr << "no SIMD" << std::endl;
 #endif
-  if(bytesofsize != 4 && bytesofsize != 8) throw exception("bytesofsize must be 4 or 8");
+  if(bytesofsize != 4 && bytesofsize != 8) throw std::runtime_error("bytesofsize must be 4 or 8");
   size_t blocksize = x.size();
   std::vector<uint8_t> xshuf(blocksize);
   blosc_shuffle(x.data(), xshuf.data(), blocksize, bytesofsize);
@@ -285,13 +404,13 @@ std::vector<unsigned char> blosc_shuffle_raw(std::vector<uint8_t> x, int bytesof
 // [[Rcpp::export]]
 std::vector<unsigned char> blosc_unshuffle_raw(std::vector<uint8_t> x, int bytesofsize) {
 #if defined (__AVX2__)
-  Rcout << "AVX2" << std::endl;
+  Rcpp::Rcerr << "AVX2" << std::endl;
 #elif defined (__SSE2__)
-  Rcout << "SSE2" << std::endl;
+  Rcpp::Rcerr << "SSE2" << std::endl;
 #else
-  Rcout << "no SIMD" << std::endl;
+  Rcpp::Rcerr << "no SIMD" << std::endl;
 #endif
-  if(bytesofsize != 4 && bytesofsize != 8) throw exception("bytesofsize must be 4 or 8");
+  if(bytesofsize != 4 && bytesofsize != 8) throw std::runtime_error("bytesofsize must be 4 or 8");
   size_t blocksize = x.size();
   std::vector<uint8_t> xshuf(blocksize);
   blosc_unshuffle(x.data(), xshuf.data(), blocksize, bytesofsize);

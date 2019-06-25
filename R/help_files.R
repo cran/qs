@@ -22,13 +22,14 @@
 #' Saves (serializes) an object to disk.  
 #' @usage qsave(x, file, 
 #' preset = "balanced", algorithm = "lz4", compress_level = 1L, 
-#' shuffle_control = 15L, nthreads = 1)
+#' shuffle_control = 15L, check_hash=TRUE, nthreads = 1)
 #' @param x the object to serialize.
 #' @param file the file name/path.
 #' @param preset One of "fast", "balanced" (default), "high", "archive" or "custom".  See details.  
 #' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc" or "zstd_stream".
 #' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
 #' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
+#' @param check_hash Default TRUE, compute a hash which can be used to verify file integrity during serialization
 #' @param nthreads Number of threads to use.  Default 1.  
 #' @details 
 #' This function serializes and compresses R objects using block compresion with the option of byte shuffling.  
@@ -48,7 +49,7 @@
 #' parameters are ignored unless `preset` is "custom".  "fast" preset: algorithm lz4, compress_level 100, shuffle_control 0.  
 #' "balanced" preset: algorithm lz4, compress_level 1, shuffle_control 15.  
 #' "high" preset: algorithm zstd, compress_level 4, shuffle_control 15.  
-#' "archive" preset: algorithm zstd_stream, compress_level 14, shuffle_control 15.  
+#' "archive" preset: algorithm zstd_stream, compress_level 14, shuffle_control 15. (zstd_stream is currently single threaded only) 
 #' @examples 
 #' x <- data.frame(int = sample(1e3, replace=TRUE), 
 #'                  num = rnorm(1e3), 
@@ -76,17 +77,17 @@
 #' w2 <- qread(myfile)
 #' identical(w, w2) # returns true
 #' @export
-qsave <- function(x, file, preset="balanced", algorithm="lz4", compress_level=1L, shuffle_control=15L, nthreads=1) {
-  c_qsave(x,normalizePath(file, mustWork=FALSE),preset,algorithm, compress_level, shuffle_control, nthreads)
+qsave <- function(x, file, preset="balanced", algorithm="lz4", compress_level=1L, shuffle_control=15L, check_hash = TRUE, nthreads=1) {
+  c_qsave(x,normalizePath(file, mustWork=FALSE), preset, algorithm, compress_level, shuffle_control, check_hash, nthreads)
 }
 
 #' qread
 #' 
 #' Reads a object in a file serialized to disk
-#' @usage qread(file, use_alt_rep=TRUE, inspect=FALSE, nthreads=1)
+  #' @usage qread(file, use_alt_rep=FALSE, strict=FALSE, nthreads=1)
 #' @param file the file name/path
-#' @param use_alt_rep Use alt rep when reading in string data.  Default: TRUE
-#' @param inspect Whether to call qinspect before de-serializing data.  Set to true if you suspect your data may be corrupted.  Default: FALSE
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE
+#' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
 #' @param nthreads Number of threads to use.  Default 1.  
 #' @return The de-serialized object
 #' @examples 
@@ -116,28 +117,8 @@ qsave <- function(x, file, preset="balanced", algorithm="lz4", compress_level=1L
 #' w2 <- qread(myfile)
 #' identical(w, w2) # returns true
 #' @export
-qread <- function(file, use_alt_rep=TRUE, inspect=FALSE, nthreads=1) {
-  c_qread(normalizePath(file, mustWork=FALSE), use_alt_rep, inspect, nthreads)
-}
-
-#' qinspect
-#' 
-#' Performs a quick inspection of a serialized object/file, determines whether the file was properly compressed.  
-#' E.g., if your process was interrupted for some reason, and you suspect qsave was interrupted, you can run this function 
-#' to test the integrity of the serialized object.  
-#' @usage qinspect(file)
-#' @param file the file name/path
-#' @return A boolean.  TRUE if the object was properly compressed.  FALSE if there is an issue.  
-#' @examples 
-#' x <- data.frame(int = sample(1e3, replace=TRUE), 
-#'                  num = rnorm(1e3), 
-#'                  char = randomStrings(1e3), stringsAsFactors = FALSE)
-#' myfile <- tempfile()
-#' qsave(x, myfile)
-#' qinspect(myfile) # returns true
-#' @export
-qinspect <- function(file) {
-  c_qinspect(normalizePath(file, mustWork=FALSE))
+qread <- function(file, use_alt_rep=FALSE, strict=FALSE, nthreads=1) {
+  c_qread(normalizePath(file, mustWork=FALSE), use_alt_rep, strict, nthreads)
 }
 
 
