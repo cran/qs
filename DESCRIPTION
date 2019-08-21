@@ -1,8 +1,8 @@
 Package: qs
 Type: Package
 Title: Quick Serialization of R Objects
-Version: 0.17.3
-Date: 2019-7-8
+Version: 0.18.3
+Date: 2019-8-12
 Authors@R: c(
     person("Travers", "Ching", email = "traversc@gmail.com", role = c("aut", "cre", "cph")),
     person("Yann", "Collet", role = c("ctb", "cph"), comment = "Yann Collet is the author of the bundled zstd and lz4 code"),
@@ -14,11 +14,12 @@ Authors@R: c(
     person("Francesc", "Alted", role = c("ctb", "cph"), comment = "Shuffling routines derived from Blosc library"))
 Maintainer: Travers Ching <traversc@gmail.com>
 Description: Provides functions for quickly writing and reading any R object to and from disk.  
-License: AGPL-3 | file LICENSE
+License: GPL-3 | file LICENSE
 LazyData: true
+Biarch: true
+SystemRequirements: C++11
 Imports: Rcpp, RApiSerialize
 LinkingTo: Rcpp, RApiSerialize
-Depends: R (>= 3.5.0)
 RoxygenNote: 6.1.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
@@ -29,7 +30,7 @@ Copyright: This package includes code from the 'zstd' library owned by
 URL: https://github.com/traversc/qs
 BugReports: https://github.com/traversc/qs/issues
 NeedsCompilation: yes
-Packaged: 2019-07-08 17:15:48 UTC; tching
+Packaged: 2019-08-20 06:19:26 UTC; tching
 Author: Travers Ching [aut, cre, cph],
   Yann Collet [ctb, cph] (Yann Collet is the author of the bundled zstd
     and lz4 code),
@@ -46,4 +47,4 @@ Author: Travers Ching [aut, cre, cph],
   Francesc Alted [ctb, cph] (Shuffling routines derived from Blosc
     library)
 Repository: CRAN
-Date/Publication: 2019-07-08 22:30:03 UTC
+Date/Publication: 2019-08-21 11:20:06 UTC

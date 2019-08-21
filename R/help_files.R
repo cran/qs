@@ -2,20 +2,21 @@
 # Copyright (C) 2019-present Travers Ching
 # 
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version.
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 # 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
+# GNU General Public License for more details.
 # 
-# You should have received a copy of the GNU Affero General Public License
+# You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # 
 # You can contact the author at:
 #   https://github.com/traversc/qs
+
 
 #' qsave
 #' 
@@ -25,12 +26,13 @@
 #' shuffle_control = 15L, check_hash=TRUE, nthreads = 1)
 #' @param x the object to serialize.
 #' @param file the file name/path.
-#' @param preset One of "fast", "balanced" (default), "high", "archive" or "custom".  See details.  
-#' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc" or "zstd_stream".
+#' @param preset One of "fast", "balanced" (default), "high", "archive", "uncompressed" or "custom".  See details.  
+#' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc", "zstd_stream" or "uncompressed".
 #' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
 #' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
 #' @param check_hash Default TRUE, compute a hash which can be used to verify file integrity during serialization
 #' @param nthreads Number of threads to use.  Default 1.  
+#' @return The total number of bytes written to the file (returned invisibly)
 #' @details 
 #' This function serializes and compresses R objects using block compresion with the option of byte shuffling.  
 #' There are lots of possible parameters.  This function exposes three parameters related to compression level and byte shuffling. 
@@ -78,15 +80,15 @@
 #' identical(w, w2) # returns true
 #' @export
 qsave <- function(x, file, preset="balanced", algorithm="lz4", compress_level=1L, shuffle_control=15L, check_hash = TRUE, nthreads=1) {
-  c_qsave(x,normalizePath(file, mustWork=FALSE), preset, algorithm, compress_level, shuffle_control, check_hash, nthreads)
+  invisible(c_qsave(x,normalizePath(file, mustWork=FALSE), preset, algorithm, compress_level, shuffle_control, check_hash, nthreads))
 }
 
 #' qread
 #' 
-#' Reads a object in a file serialized to disk
+#' Reads an object in a file serialized to disk
   #' @usage qread(file, use_alt_rep=FALSE, strict=FALSE, nthreads=1)
 #' @param file the file name/path
-#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE.  (Note: on R versions earlier than 3.5.0, this parameter does nothing.) 
 #' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
 #' @param nthreads Number of threads to use.  Default 1.  
 #' @return The de-serialized object
@@ -121,6 +123,132 @@ qread <- function(file, use_alt_rep=FALSE, strict=FALSE, nthreads=1) {
   c_qread(normalizePath(file, mustWork=FALSE), use_alt_rep, strict, nthreads)
 }
 
+#' qsave_fd
+#' 
+#' Saves an object to a file descriptor
+#' @usage qsave_fd(x, fd, 
+#' preset = "balanced", algorithm = "lz4", compress_level = 1L, 
+#' shuffle_control = 15L, check_hash=TRUE)
+#' @param x the object to serialize.
+#' @param fd A file descriptor
+#' @param preset One of "fast", "balanced" (default), "high", "archive", "uncompressed" or "custom".  See details.  
+#' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc", "zstd_stream" or "uncompressed".
+#' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
+#' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
+#' @param check_hash Default TRUE, compute a hash which can be used to verify file integrity during serialization
+#' @return the number of bytes serialized (returned invisibly)
+#' @details 
+#' This function serializes and compresses an R object to a stream using a file descriptor
+#' If your data is important, make sure you know what happens on the other side of the pipe.  See examples for usage.   
+#' @export
+qsave_fd <- function(x, fd, preset = "balanced",  algorithm="lz4", compress_level=1L, shuffle_control=15L, check_hash = TRUE) {
+  invisible(c_qsave_fd(x, fd, preset, algorithm, compress_level, shuffle_control, check_hash))
+}
+
+
+#' qread_fd
+#' 
+#' Reads an object from a file descriptor
+#' @usage qread_fd(fd, use_alt_rep=FALSE, strict=FALSE)
+#' @param fd A file descriptor
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE.  (Note: on R versions earlier than 3.5.0, this parameter does nothing.) 
+#' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
+#' @return The de-serialized object
+#' @details
+#' See `?qsave_fd` for additional details and examples.  
+#' @export
+qread_fd <- function(fd, use_alt_rep=FALSE, strict=FALSE) {
+  c_qread_fd(fd, use_alt_rep, strict)
+}
+
+#' qsave_handle
+#' 
+#' Saves an object to a windows handle
+#' @usage qsave_handle(x, handle, 
+#' preset = "balanced", algorithm = "lz4", compress_level = 1L, 
+#' shuffle_control = 15L, check_hash=TRUE)
+#' @param x the object to serialize.
+#' @param handle A windows handle external pointer
+#' @param preset One of "fast", "balanced" (default), "high", "archive", "uncompressed" or "custom".  See details.  
+#' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc", "zstd_stream" or "uncompressed".
+#' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
+#' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
+#' @param check_hash Default TRUE, compute a hash which can be used to verify file integrity during serialization
+#' @return the number of bytes serialized (returned invisibly)
+#' @details 
+#' This function serializes and compresses an R object to a stream using a file descriptor
+#' If your data is important, make sure you know what happens on the other side of the pipe.  See examples for usage.   
+#' @export
+qsave_handle <- function(x, handle, preset = "balanced",  algorithm="lz4", compress_level=1L, shuffle_control=15L, check_hash = TRUE) {
+  invisible(c_qsave_handle(x, handle, preset, algorithm, compress_level, shuffle_control, check_hash))
+}
+
+
+#' qread_handle
+#' 
+#' Reads an object from a windows handle
+#' @usage qread_handle(handle, use_alt_rep=FALSE, strict=FALSE)
+#' @param handle A windows handle external pointer
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE.  (Note: on R versions earlier than 3.5.0, this parameter does nothing.) 
+#' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
+#' @return The de-serialized object
+#' @details
+#' See `?qsave_handle` for additional details and examples.  
+#' @export
+qread_handle <- function(handle, use_alt_rep=FALSE, strict=FALSE) {
+  c_qread_handle(handle, use_alt_rep, strict)
+}
+
+
+#' qserialize
+#' 
+#' Saves an object to a raw vector 
+#' @usage qserialize(x, preset = "balanced", 
+#' algorithm = "lz4", compress_level = 1L, 
+#' shuffle_control = 15L, check_hash=TRUE)
+#' @param x the object to serialize.
+#' @param preset One of "fast", "balanced" (default), "high", "archive", "uncompressed" or "custom".  See details.  
+#' @param algorithm Compression algorithm used: "lz4", "zstd", "lz4hc", "zstd_stream" or "uncompressed".
+#' @param compress_level The compression level used (Default 1).  For lz4, this number must be > 1 (higher is less compressed).  For zstd, a number between -50 to 22 (higher is more compressed).  
+#' @param shuffle_control An integer setting the use of byte shuffle compression.  A value between 0 and 15 (Default 3).  See details.  
+#' @param check_hash Default TRUE, compute a hash which can be used to verify file integrity during serialization
+#'c @details 
+#' This function serializes and compresses an R object to a raw vctor
+#' If your data is important, make sure you know what happens on the other side of the pipe.  See examples for usage.   
+#' @export
+qserialize <- function(x, preset = "balanced",  algorithm="lz4", compress_level=1L, shuffle_control=15L, check_hash = TRUE) {
+  c_qserialize(x, preset, algorithm, compress_level, shuffle_control, check_hash)
+}
+
+
+#' qdeserialize
+#' 
+#' Reads an object from a fd
+#' @usage qdeserialize(x, use_alt_rep=FALSE, strict=FALSE)
+#' @param x a raw vector
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE.  (Note: on R versions earlier than 3.5.0, this parameter does nothing.) 
+#' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
+#' @return The de-serialized object
+#' @details
+#' See `?qeserialize` for additional details and examples.  
+#' @export
+qdeserialize <- function(x, use_alt_rep=FALSE, strict=FALSE) {
+  c_qdeserialize(x, use_alt_rep, strict)
+}
+
+#' qread_ptr
+#' 
+#' Reads an object from a external pointer
+#' @usage qread_ptr(pointer, length, use_alt_rep=FALSE, strict=FALSE)
+#' @param pointer An external pointer to memory
+#' @param length the length of the object in memory
+#' @param use_alt_rep Use alt rep when reading in string data.  Default: FALSE.  (Note: on R versions earlier than 3.5.0, this parameter does nothing.) 
+#' @param strict Whether to throw an error or just report a warning (Default: FALSE, report warning)
+#' @return The de-serialized object
+#' @export
+qread_ptr <- function(pointer, length, use_alt_rep=FALSE, strict=FALSE) {
+  c_qread_ptr(pointer, length, use_alt_rep, strict)
+}
 
 #' qdump
 #' 
@@ -251,6 +379,7 @@ NULL
 #' Convert character vector to alt-rep
 #' 
 #' A function for generating a alt-rep object from a character vector, for users to experiment with the alt-rep system. 
+#' This function is not available in R versions earlier than 3.5.0.
 #' @usage convertToAlt(x)
 #' @param x The character vector
 #' @return The character vector in alt-rep form

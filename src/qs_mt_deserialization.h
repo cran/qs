@@ -2,16 +2,16 @@
  Copyright (C) 2019-present Travers Ching
  
  This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU Affero General Public License as
- published by the Free Software Foundation, either version 3 of the
- License, or (at your option) any later version.
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
  
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU Affero General Public License for more details.
+ GNU General Public License for more details.
  
- You should have received a copy of the GNU Affero General Public License
+ You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  
  You can contact the author at:
@@ -77,8 +77,7 @@ struct Data_Thread_Context {
   Data_Thread_Context(std::ifstream* mf, unsigned int nt, QsMetadata qm) : 
     denv(decompress_env()),
     myFile(mf), nthreads(nt), blocks_read(0), blocks_processed(0) {
-    blocks_total = readSizeFromFile8(*myFile);
-    
+    blocks_total = qm.clength;
     zblocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(denv.compressBound(BLOCKSIZE)));
     data_blocks = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
     data_blocks2 = std::vector<std::vector<char> >(nthreads, std::vector<char>(BLOCKSIZE));
@@ -307,6 +306,7 @@ struct Data_Context_MT {
       if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(RAW(obj)), r_array_len);
       break;
     case STRSXP:
+#ifdef ALTREP_SUPPORTED
       if(use_alt_rep_bool) {
         auto ret = new stdvec_data(r_array_len);
         for(uint64_t i=0; i < r_array_len; i++) {
@@ -342,6 +342,7 @@ struct Data_Context_MT {
         }
         obj = PROTECT(stdvec_string::Make(ret, true)); pt++;
       } else {
+#endif
         obj = PROTECT(Rf_allocVector(STRSXP, r_array_len)); pt++;
         for(uint64_t i=0; i<r_array_len; i++) {
           uint32_t r_string_len;
@@ -363,7 +364,9 @@ struct Data_Context_MT {
             SET_STRING_ELT(obj, i, Rf_mkCharLenCE(temp_string.data(), r_string_len, string_encoding));
           }
         }
+#ifdef ALTREP_SUPPORTED
       }
+#endif
       break;
     case S4SXP:
     {

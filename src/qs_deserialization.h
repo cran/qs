@@ -2,16 +2,16 @@
  Copyright (C) 2019-present Travers Ching
  
  This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU Affero General Public License as
- published by the Free Software Foundation, either version 3 of the
- License, or (at your option) any later version.
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
  
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU Affero General Public License for more details.
+ GNU General Public License for more details.
  
- You should have received a copy of the GNU Affero General Public License
+ You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  
  You can contact the author at:
@@ -24,30 +24,30 @@
 // de-serialization functions
 ////////////////////////////////////////////////////////////////
 
-template <class decompress_env> 
+template <class stream_reader, class decompress_env> 
 struct Data_Context {
-  std::ifstream & myFile;
+  stream_reader & myFile;
   decompress_env denv;
   xxhash_env xenv;
   QsMetadata qm;
   bool use_alt_rep_bool;
   
-  uint64_t number_of_blocks;
+  // uint64_t number_of_blocks;
   std::vector<char> zblock;
   std::vector<char> block;
   std::vector<uint8_t> shuffleblock = std::vector<uint8_t>(256);
   uint64_t data_offset;
-  uint64_t block_i;
+  uint64_t blocks_read;
   uint64_t block_size;
   std::string temp_string;
   
-  Data_Context(std::ifstream & mf, QsMetadata qm, bool use_alt_rep) : 
+  Data_Context(stream_reader & mf, QsMetadata qm, bool use_alt_rep) : 
     myFile(mf), denv(decompress_env()), xenv(xxhash_env()), qm(qm), use_alt_rep_bool(use_alt_rep) {
-    number_of_blocks = readSizeFromFile8(myFile);
+    // number_of_blocks = readSize8(myFile);
     zblock = std::vector<char>(denv.compressBound(BLOCKSIZE));
     block = std::vector<char>(BLOCKSIZE);
     data_offset = 0;
-    block_i = 0;
+    blocks_read = 0;
     block_size = 0;
     temp_string = std::string(256, '\0');
   }
@@ -62,20 +62,20 @@ struct Data_Context {
     readStringHeader_common(r_string_len, ce_enc, data_offset, header);
   }
   void decompress_direct(char* bpointer) {
-    block_i++;
+    blocks_read++;
     std::array<char, 4> zsize_ar = {0,0,0,0};
-    myFile.read(zsize_ar.data(), 4);
+    read_check(myFile, zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
-    myFile.read(zblock.data(), zsize);
+    read_check(myFile, zblock.data(), zsize);
     block_size = denv.decompress(bpointer, BLOCKSIZE, zblock.data(), zsize);
     if(qm.check_hash) xenv.update(bpointer, BLOCKSIZE);
   }
   void decompress_block() {
-    block_i++;
+    blocks_read++;
     std::array<char, 4> zsize_ar = {0,0,0,0};
-    myFile.read(zsize_ar.data(), 4);
+    read_check(myFile, zsize_ar.data(), 4);
     uint64_t zsize = *reinterpret_cast<uint32_t*>(zsize_ar.data());
-    myFile.read(zblock.data(), zsize);
+    read_check(myFile, zblock.data(), zsize);
     block_size = denv.decompress(block.data(), BLOCKSIZE, zblock.data(), zsize);
     data_offset = 0;
     if(qm.check_hash) xenv.update(block.data(), block_size);
@@ -167,6 +167,7 @@ struct Data_Context {
       if(r_array_len > 0) getBlockData(reinterpret_cast<char*>(RAW(obj)), r_array_len);
       break;
     case STRSXP:
+#ifdef ALTREP_SUPPORTED
       if(use_alt_rep_bool) {
         auto ret = new stdvec_data(r_array_len);
         for(uint64_t i=0; i < r_array_len; i++) {
@@ -202,6 +203,7 @@ struct Data_Context {
         }
         obj = PROTECT(stdvec_string::Make(ret, true));  pt++;
       } else {
+#endif
         obj = PROTECT(Rf_allocVector(STRSXP, r_array_len));  pt++;
         for(uint64_t i=0; i<r_array_len; i++) {
           uint32_t r_string_len;
@@ -219,7 +221,9 @@ struct Data_Context {
             SET_STRING_ELT(obj, i, Rf_mkCharLenCE(temp_string.data(), r_string_len, string_encoding));
           }
         }
+#ifdef ALTREP_SUPPORTED  
       }
+#endif
       break;
     case S4SXP:
     {

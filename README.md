@@ -39,23 +39,12 @@ df2 <- qread("myfile.qs")
 
 ## Installation:
 
-For R version 3.5 or higher:
-
 ``` r
 # CRAN version
 install.packages("qs")
 
-# CRAN version compile from source with AVX2 support (recommended)
+# CRAN version compile from source (recommended)
 remotes::install_cran("qs", type="source", configure.args="--with-simd=AVX2")
-
-# Experimental
-remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2")
-```
-
-For R version 3.4 and lower:
-
-``` r
-remotes::install_github("traversc/qs", ref = "qs34")
 ```
 
 ## Features

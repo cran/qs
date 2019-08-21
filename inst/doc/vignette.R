@@ -8,14 +8,8 @@
 #  # CRAN version
 #  install.packages("qs")
 #  
-#  # CRAN version compile from source with AVX2 support (recommended)
+#  # CRAN version compile from source (recommended)
 #  remotes::install_cran("qs", type="source", configure.args="--with-simd=AVX2")
-#  
-#  # Experimental
-#  remotes::install_github("traversc/qs", configure.args="--with-simd=AVX2")
-
-## ----eval=FALSE----------------------------------------------------------
-#  remotes::install_github("traversc/qs", ref = "qs34")
 
 ## ----eval=FALSE----------------------------------------------------------
 #  data.frame(a=rnorm(5e6),
