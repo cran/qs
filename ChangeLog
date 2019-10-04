@@ -1,4 +1,11 @@
-Version 0.18.3 (2019-8-12)
+Version 0.19.1 (2019-9-2)
+   * Exposed C++ API for use in other Rcpp packages and Rcpp scripts (https://github.com/traversc/qs/issues/18)
+
+Version 0.18.4 (2019-8-22)
+   * Fixed an rchk issue with a missing `PROTECT` call during serialization
+   * Various code refactor and optimizations
+
+Version 0.18.3 (2019-8-20)
    * `qsave` now returns invisibly the number of bytes written to file
    * Fixed an issue with deserialization of large S4 objects (https://github.com/traversc/qs/issues/14)
    * Additional serialization and deserialization functions for advanced usage:
@@ -6,12 +13,12 @@ Version 0.18.3 (2019-8-12)
       * `qsave_fd` and `qread_fd` reads and write objects to file descriptors
       * `qsave_handle` and `qread_handle` reads and writes objects to Windows HANDLE pointer (Windows only)
       * `qread_ptr` reads objects from a void pointer
-   
+
 Version 0.18.2 (2019-7-19)
    * Changed license to GPL-3 (https://github.com/traversc/qs/issues/13)
 
 Version 0.18.1 (2019-7-14)
-   * Revised header format in order to include more information -- files created by 0/18.1 cannot by read by earlier versions
+   * Revised header format in order to include more information -- files created by 0.18.1 cannot by read by earlier versions
    * Remove R version restriction.  Previously, `qs` required R >= 3.5.0.  R alt-rep functionality will not be used in earlier versions.  
 
 Version 0.17.3 (2019-7-8)
@@ -40,9 +47,9 @@ Version 0.16.2 (2019-6-15)
    * Added `Set_elt` method for alt-rep string class (https://github.com/traversc/qs/issues/9)
    * Code cleanup:
       * Additional error checking during compression and de-compression
-	  * Use of RAII for protection stack handling
+     * Use of RAII for protection stack handling
       * Use of templates instead of function pointers for compression and decompression
-	  * Moved some functions to qs_common.h as templates to avoid code redundancy
+     * Moved some functions to qs_common.h as templates to avoid code redundancy
 
 Version 0.16.1 (2019-5-15)
 

@@ -53,3 +53,19 @@ knitr::kable(df)
 #  system.time(qread("temp.qs", use_alt_rep=F))[1]
 #  #     1.703 seconds
 
+## ----eval=FALSE----------------------------------------------------------
+#  library(qs)
+#  x <- qserialize(c(1,2,3))
+#  qdeserialize(x)
+#  [1] 1 2 3
+
+## ----eval=FALSE----------------------------------------------------------
+#  library(qs)
+#  library(Rcpp)
+#  sourceCpp("test.cpp")
+#  # save file using Rcpp interface
+#  test()
+#  # read in file create through Rcpp interface
+#  qread("/tmp/myfile.qs")
+#  [1] 1 2 3
+
