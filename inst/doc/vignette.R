@@ -13,17 +13,10 @@
 
 ## ----eval=FALSE----------------------------------------------------------
 #  data.frame(a=rnorm(5e6),
-#             b=rpois(100,5e6),
+#             b=rpois(5e6,100),
 #             c=sample(starnames$IAU,5e6,T),
 #             d=sample(state.name,5e6,T),
 #             stringsAsFactors = F)
-
-## ----echo=FALSE----------------------------------------------------------
-df <- read.csv("df_bench_summary.csv", check.names=F, stringsAsFactors=F)
-df$`Write Time (s)` <- signif(df$`Write Time (s)`, 3)
-df$`Read Time (s)` <- signif(df$`Read Time (s)`, 3)
-df$`File Size (Mb)` <- signif(df$`File Size (Mb)`, 3)
-knitr::kable(df)
 
 ## ----eval=FALSE----------------------------------------------------------
 #  # With byte shuffling
