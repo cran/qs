@@ -1,8 +1,8 @@
 Package: qs
 Type: Package
 Title: Quick Serialization of R Objects
-Version: 0.21.2
-Date: 2020-3-10
+Version: 0.22.1
+Date: 2020-6-9
 Authors@R: c(
     person("Travers", "Ching", email = "traversc@gmail.com", role = c("aut", "cre", "cph")),
     person("Yann", "Collet", role = c("ctb", "cph"), comment = "Yann Collet is the author of the bundled zstd and lz4 code"),
@@ -17,10 +17,11 @@ Description: Provides functions for quickly writing and reading any R object to 
 License: GPL-3 | file LICENSE
 LazyData: true
 Biarch: true
+Depends: R (>= 3.5.0)
 SystemRequirements: C++11
-Imports: Rcpp, RApiSerialize
-LinkingTo: Rcpp, RApiSerialize
-RoxygenNote: 6.1.1
+Imports: Rcpp, RApiSerialize, stringfish
+LinkingTo: Rcpp, RApiSerialize, stringfish
+RoxygenNote: 7.1.0
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 Copyright: This package includes code from the 'zstd' library owned by
@@ -30,7 +31,7 @@ Copyright: This package includes code from the 'zstd' library owned by
 URL: https://github.com/traversc/qs
 BugReports: https://github.com/traversc/qs/issues
 NeedsCompilation: yes
-Packaged: 2020-03-10 09:41:31 UTC; tching
+Packaged: 2020-06-10 07:01:40 UTC; tching
 Author: Travers Ching [aut, cre, cph],
   Yann Collet [ctb, cph] (Yann Collet is the author of the bundled zstd
     and lz4 code),
@@ -47,4 +48,4 @@ Author: Travers Ching [aut, cre, cph],
   Francesc Alted [ctb, cph] (Shuffling routines derived from Blosc
     library)
 Repository: CRAN
-Date/Publication: 2020-03-10 17:40:02 UTC
+Date/Publication: 2020-06-10 07:50:03 UTC
