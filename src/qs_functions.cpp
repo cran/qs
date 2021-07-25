@@ -55,7 +55,7 @@ bool is_big_endian()
 double qsave(SEXP const x, const std::string & file, const std::string preset="high", const std::string algorithm="zstd", 
                const int compress_level=4L, const int shuffle_control=15L, const bool check_hash=true, const int nthreads=1) {
   std::ofstream myFile(R_ExpandFileName(file.c_str()), std::ios::out | std::ios::binary);
-  myFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+  myFile.exceptions(std::ofstream::failbit | std::ofstream::badbit);
   if(!myFile) {
     throw std::runtime_error("Failed to open " + file + ". Check file path.");
   }
@@ -134,6 +134,7 @@ double qsave(SEXP const x, const std::string & file, const std::string preset="h
   uint64_t total_file_size = myFile.tellp() - origin;
   myFile.seekp(header_end_pos);
   writeSize8(myFile, clength);
+  myFile.close();
   return static_cast<double>(total_file_size);
 }
 
@@ -296,12 +297,14 @@ SEXP qread(const std::string & file, const bool use_alt_rep=false, const bool st
     Data_Context_Stream<ZSTD_streamRead<std::ifstream>> dc(sr, qm, use_alt_rep);
     SEXP ret = PROTECT(processBlock(&dc)); pt++;
     validate_data(qm, myFile, *reinterpret_cast<uint32_t*>(dc.dsc.hash_reserve.data()), dc.dsc.xenv.digest(), dc.dsc.decompressed_bytes_read, strict);
+    myFile.close();
     return ret;
   } else if(qm.compress_algorithm == 4) { // uncompressed
     uncompressed_streamRead<std::ifstream> sr(myFile, qm);
     Data_Context_Stream<uncompressed_streamRead<std::ifstream>> dc(sr, qm, use_alt_rep);
     SEXP ret = PROTECT(processBlock(&dc)); pt++;
     validate_data(qm, myFile, *reinterpret_cast<uint32_t*>(dc.dsc.hash_reserve.data()), dc.dsc.xenv.digest(), dc.dsc.decompressed_bytes_read, strict);
+    myFile.close();
     return ret;
   } else {
     if(nthreads <= 1 || qm.clength == 0) {
@@ -309,11 +312,13 @@ SEXP qread(const std::string & file, const bool use_alt_rep=false, const bool st
         Data_Context<std::ifstream, zstd_decompress_env> dc(myFile, qm, use_alt_rep);
         SEXP ret = PROTECT(processBlock(&dc)); pt++;
         validate_data(qm, myFile, qm.check_hash ? readSize4(myFile) : 0, dc.xenv.digest(), dc.blocks_read, strict);
+        myFile.close();
         return ret;
       } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) {
         Data_Context<std::ifstream, lz4_decompress_env> dc(myFile, qm, use_alt_rep);
         SEXP ret = PROTECT(processBlock(&dc)); pt++;
         validate_data(qm, myFile, qm.check_hash ? readSize4(myFile) : 0, dc.xenv.digest(), dc.blocks_read, strict);
+        myFile.close();
         return ret;
       } else {
         throw std::runtime_error("Invalid compression algorithm in file");
@@ -324,12 +329,14 @@ SEXP qread(const std::string & file, const bool use_alt_rep=false, const bool st
         SEXP ret = PROTECT(processBlock(&dc)); pt++;
         dc.dtc.finish();
         validate_data(qm, myFile, qm.check_hash ? readSize4(myFile) : 0, dc.xenv.digest(), 0, strict);
+        myFile.close();
         return ret;
       } else if(qm.compress_algorithm == 1 || qm.compress_algorithm == 2) {
         Data_Context_MT<lz4_decompress_env> dc(myFile, qm, use_alt_rep, nthreads);
         SEXP ret = PROTECT(processBlock(&dc)); pt++;
         dc.dtc.finish();
         validate_data(qm, myFile, qm.check_hash ? readSize4(myFile) : 0, dc.xenv.digest(), 0, strict);
+        myFile.close();
         return ret;
       } else {
         throw std::runtime_error("Invalid compression algorithm in file");
@@ -595,6 +602,7 @@ RObject qdump(const std::string & file) {
   } else {
     outvec["error"] = "unknown compression";
   }
+  myFile.close();
   return outvec;
 }
 

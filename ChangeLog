@@ -1,10 +1,21 @@
+Version 0.25.1 (2021-7-20)
+   * Add `qcache` helper function
+   * Remove immediate binding expansion, as it is not part of the R API (comments from CRAN/Luke Tierney). Instead, use the `findVarsInFrame` function to extract immediate bindings from environments.
+   * Remove `R_restoreHashCount` function, as it is not part of the new R API
+
+Version 0.24.4 (2021-3-13)
+   * Throw a proper error message for DBFS issues (https://github.com/traversc/qs/issues/51)
+
+Version 0.24.3 (2021-3-8)
+   * Add github actions to test compilation on different R versions
+
 Version 0.24.1 (2021-3-5)
    * Add additional error checks on failure to read or write data
    * Update xxhash version to 0.8.0
    * Reduce R version requirement from R 3.5.0 to R 3.0.2 (https://github.com/traversc/qs/pull/36)
 
 Version 0.23.6 (2020-2-7)
-   * Add BNDCELLS support added in R 4.0 (https://github.com/traversc/qs/issues/50)
+   * Add BNDCELLS (aka immediate bindings) support added in R 4.0 (https://github.com/traversc/qs/issues/50)
 
 Version 0.23.5 (2020-12-9)
    * Correct issue in `qsavem` function (https://github.com/traversc/qs/issues/46)
