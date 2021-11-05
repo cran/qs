@@ -1,5 +1,5 @@
 7ccfedd259fbebda9eec1a37edb3a386 *ChangeLog
-f7100a2db2ced8952c508af25b0c77f8 *DESCRIPTION
+50f3f0873e2e51f410fd7f99ccfef99b *DESCRIPTION
 61c9c0aa3fbec7e14f478077dc72cf15 *NAMESPACE
 9f666592b92d3c8c0fd7a0708e45f2ae *R/RcppExports.R
 d2ac056166a24a00f1e3351db9d897ce *R/help_files.R
@@ -7,13 +7,13 @@ d2ac056166a24a00f1e3351db9d897ce *R/help_files.R
 d3e5930b95d7cd7e1913d5677ab7d1af *R/qsavem-load.R
 1b9d6a9f052e9bd5685a8c92959244fb *R/zzz.R
 975de62f47af9363dbc946f22bad55b0 *README.md
-13700ef5763d5cdeb0ee601ae940f1fb *build/vignette.rds
+64e53253478a634906d9b5883da4931f *build/vignette.rds
 6e6fbd4608a7a748d2311382dc52f0e6 *cleanup
-6aee8ed943827160bdac456585cdd922 *configure
-fa1d2572b480b9359252253a825591b8 *configure.ac
-415cc4d7d675b57079699f23df4e9aa1 *data/starnames.rda
+01b7f9a043f670ac776fdcf5be9cf633 *configure
+9a79188d3e78cbbf2a4e4e6bc3630c42 *configure.ac
+28561d4a553d222324c0faf5af768d40 *data/starnames.rda
 b101ebbaa93e71b9cc1c0054cbe7048c *inst/doc/vignette.R
-ce194b2522dd29cb1b77796766a9187f *inst/doc/vignette.html
+4072f9d5bfc8e81413bd3ebcf83a307a *inst/doc/vignette.html
 8abd75abdc5fe9349de293acdde64d7e *inst/doc/vignette.rmd
 149a9b7459650126dba5646735005459 *inst/include/qs.h
 7a379f8be88f113386439e611d355afc *inst/include/qs_RcppExports.h
