@@ -24,17 +24,16 @@ namespace qs {
         }
     }
 
-    inline std::vector<std::string> randomStrings(const int N, const int string_size = 50) {
-        typedef SEXP(*Ptr_randomStrings)(SEXP,SEXP);
-        static Ptr_randomStrings p_randomStrings = NULL;
-        if (p_randomStrings == NULL) {
-            validateSignature("std::vector<std::string>(*randomStrings)(const int,const int)");
-            p_randomStrings = (Ptr_randomStrings)R_GetCCallable("qs", "_qs_randomStrings");
+    inline std::string check_SIMD() {
+        typedef SEXP(*Ptr_check_SIMD)();
+        static Ptr_check_SIMD p_check_SIMD = NULL;
+        if (p_check_SIMD == NULL) {
+            validateSignature("std::string(*check_SIMD)()");
+            p_check_SIMD = (Ptr_check_SIMD)R_GetCCallable("qs", "_qs_check_SIMD");
         }
         RObject rcpp_result_gen;
         {
-            RNGScope RCPP_rngScope_gen;
-            rcpp_result_gen = p_randomStrings(Shield<SEXP>(Rcpp::wrap(N)), Shield<SEXP>(Rcpp::wrap(string_size)));
+            rcpp_result_gen = p_check_SIMD();
         }
         if (rcpp_result_gen.inherits("interrupted-error"))
             throw Rcpp::internal::InterruptedException();
@@ -42,7 +41,7 @@ namespace qs {
             throw Rcpp::LongjumpException(rcpp_result_gen);
         if (rcpp_result_gen.inherits("try-error"))
             throw Rcpp::exception(Rcpp::as<std::string>(rcpp_result_gen).c_str());
-        return Rcpp::as<std::vector<std::string> >(rcpp_result_gen);
+        return Rcpp::as<std::string >(rcpp_result_gen);
     }
 
     inline int zstd_compress_bound(const int size) {
@@ -225,26 +224,6 @@ namespace qs {
         return Rcpp::as<std::string >(rcpp_result_gen);
     }
 
-    inline SEXP convertToAlt(const CharacterVector& x) {
-        typedef SEXP(*Ptr_convertToAlt)(SEXP);
-        static Ptr_convertToAlt p_convertToAlt = NULL;
-        if (p_convertToAlt == NULL) {
-            validateSignature("SEXP(*convertToAlt)(const CharacterVector&)");
-            p_convertToAlt = (Ptr_convertToAlt)R_GetCCallable("qs", "_qs_convertToAlt");
-        }
-        RObject rcpp_result_gen;
-        {
-            rcpp_result_gen = p_convertToAlt(Shield<SEXP>(Rcpp::wrap(x)));
-        }
-        if (rcpp_result_gen.inherits("interrupted-error"))
-            throw Rcpp::internal::InterruptedException();
-        if (Rcpp::internal::isLongjumpSentinel(rcpp_result_gen))
-            throw Rcpp::LongjumpException(rcpp_result_gen);
-        if (rcpp_result_gen.inherits("try-error"))
-            throw Rcpp::exception(Rcpp::as<std::string>(rcpp_result_gen).c_str());
-        return Rcpp::as<SEXP >(rcpp_result_gen);
-    }
-
     inline std::string base85_encode(const RawVector& rawdata) {
         typedef SEXP(*Ptr_base85_encode)(SEXP);
         static Ptr_base85_encode p_base85_encode = NULL;
@@ -285,16 +264,16 @@ namespace qs {
         return Rcpp::as<RawVector >(rcpp_result_gen);
     }
 
-    inline std::string base91_encode(const RawVector& rawdata) {
-        typedef SEXP(*Ptr_base91_encode)(SEXP);
-        static Ptr_base91_encode p_base91_encode = NULL;
-        if (p_base91_encode == NULL) {
-            validateSignature("std::string(*base91_encode)(const RawVector&)");
-            p_base91_encode = (Ptr_base91_encode)R_GetCCallable("qs", "_qs_base91_encode");
+    inline std::string c_base91_encode(const RawVector& rawdata) {
+        typedef SEXP(*Ptr_c_base91_encode)(SEXP);
+        static Ptr_c_base91_encode p_c_base91_encode = NULL;
+        if (p_c_base91_encode == NULL) {
+            validateSignature("std::string(*c_base91_encode)(const RawVector&)");
+            p_c_base91_encode = (Ptr_c_base91_encode)R_GetCCallable("qs", "_qs_c_base91_encode");
         }
         RObject rcpp_result_gen;
         {
-            rcpp_result_gen = p_base91_encode(Shield<SEXP>(Rcpp::wrap(rawdata)));
+            rcpp_result_gen = p_c_base91_encode(Shield<SEXP>(Rcpp::wrap(rawdata)));
         }
         if (rcpp_result_gen.inherits("interrupted-error"))
             throw Rcpp::internal::InterruptedException();
@@ -305,16 +284,16 @@ namespace qs {
         return Rcpp::as<std::string >(rcpp_result_gen);
     }
 
-    inline RawVector base91_decode(const std::string& encoded_string) {
-        typedef SEXP(*Ptr_base91_decode)(SEXP);
-        static Ptr_base91_decode p_base91_decode = NULL;
-        if (p_base91_decode == NULL) {
-            validateSignature("RawVector(*base91_decode)(const std::string&)");
-            p_base91_decode = (Ptr_base91_decode)R_GetCCallable("qs", "_qs_base91_decode");
+    inline RawVector c_base91_decode(const std::string& encoded_string) {
+        typedef SEXP(*Ptr_c_base91_decode)(SEXP);
+        static Ptr_c_base91_decode p_c_base91_decode = NULL;
+        if (p_c_base91_decode == NULL) {
+            validateSignature("RawVector(*c_base91_decode)(const std::string&)");
+            p_c_base91_decode = (Ptr_c_base91_decode)R_GetCCallable("qs", "_qs_c_base91_decode");
         }
         RObject rcpp_result_gen;
         {
-            rcpp_result_gen = p_base91_decode(Shield<SEXP>(Rcpp::wrap(encoded_string)));
+            rcpp_result_gen = p_c_base91_decode(Shield<SEXP>(Rcpp::wrap(encoded_string)));
         }
         if (rcpp_result_gen.inherits("interrupted-error"))
             throw Rcpp::internal::InterruptedException();

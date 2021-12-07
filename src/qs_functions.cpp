@@ -26,8 +26,8 @@
 #include "qs_mt_deserialization.h"
 #include "qs_serialization_stream.h"
 #include "qs_deserialization_stream.h"
-#include "extra_functions.h" // should we try to compile in a seperate unit?  Would probably need to inline everything in qs_common.h
-  
+#include "extra_functions.h"
+
 /*
  * headers:
  * qs_common.h -> qs_serialize_common.h -> qs_serialization.h -> qs_functions.cpp
@@ -42,8 +42,7 @@
 
 // https://stackoverflow.com/a/1001373
 // [[Rcpp::export(rng = false)]]
-bool is_big_endian()
-{
+bool is_big_endian() {
   union {
   uint32_t i;
   char c[4];
