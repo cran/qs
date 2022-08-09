@@ -10,9 +10,6 @@
 #  
 #  # CRAN version compile from source (recommended)
 #  remotes::install_cran("qs", type = "source", configure.args = "--with-simd=AVX2")
-#  
-#  # For earlier versions of R <= 3.4
-#  remotes::install_github("traversc/qs@legacy")
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  data.frame(a = rnorm(5e6),
