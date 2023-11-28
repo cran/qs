@@ -1,3 +1,14 @@
+## ---- setup, echo=FALSE-------------------------------------------------------
+IS_GITHUB <- Sys.getenv("IS_GITHUB") != ""
+
+## ----results='asis', echo=FALSE, eval=IS_GITHUB-------------------------------
+#  cat('
+#  [![R-CMD-check](https://github.com/traversc/qs/workflows/R-CMD-check/badge.svg)](https://github.com/traversc/qs/actions)
+#  [![CRAN-Status-Badge](http://www.r-pkg.org/badges/version/qs)](https://cran.r-project.org/package=qs)
+#  [![CRAN-Downloads-Badge](https://cranlogs.r-pkg.org/badges/qs)](https://cran.r-project.org/package=qs)
+#  [![CRAN-Downloads-Total-Badge](https://cranlogs.r-pkg.org/badges/grand-total/qs)](https://cran.r-project.org/package=qs)
+#  ')
+
 ## ----eval=FALSE---------------------------------------------------------------
 #  library(qs)
 #  df1 <- data.frame(x = rnorm(5e6), y = sample(5e6), z=sample(letters, 5e6, replace = T))
@@ -17,6 +28,27 @@
 #             c = sample(starnames$IAU, 5e6, T),
 #             d = sample(state.name, 5e6, T),
 #             stringsAsFactors = F)
+
+## ----echo=FALSE, results='asis'-----------------------------------------------
+if(IS_GITHUB) {
+  cat('![](vignettes/df_bench_write.png "df_bench_write"){width=576px}')
+} else {
+  cat('![](df_bench_write.png "df_bench_write"){width=576px}')
+}
+
+## ----echo=FALSE, results='asis'-----------------------------------------------
+if(IS_GITHUB) {
+  cat('![](vignettes/df_bench_read.png "df_bench_read"){width=576px}')
+} else {
+  cat('![](df_bench_read.png "df_bench_read"){width=576px}')
+}
+
+## ----echo=FALSE, results='asis'-----------------------------------------------
+if(IS_GITHUB) {
+  cat('![](vignettes/altrep_bench.png "altrep_bench"){width=487px}')
+} else {
+  cat('![](altrep_bench.png "altrep_bench"){width=487px}')
+}
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  # With byte shuffling

@@ -1,5 +1,12 @@
-AC_INIT([qs],[0.22.1],[traversc@gmail.com])
+AC_INIT([qs],[0.25.6],[traversc@gmail.com])
 AC_PATH_PROG([PKGCONF],[pkg-config],[],[$PATH:/usr/local/bin:ext/bin:ext:/sw/bin:/opt/bin:/opt/local/bin])
+
+########################################################
+AC_LANG(C++)
+: ${R_HOME=`R RHOME`}
+PATH_TO_CPP_COMPILER=`"${R_HOME}/bin/R" CMD config CXX`
+AC_PROG_CXX([$PATH_TO_CPP_COMPILER])
+echo "C++ compiler: $PATH_TO_CPP_COMPILER"
 
 ########################################################
 ### Configure args
@@ -7,7 +14,7 @@ AC_PATH_PROG([PKGCONF],[pkg-config],[],[$PATH:/usr/local/bin:ext/bin:ext:/sw/bin
 AC_ARG_WITH([zstd-force-compile],
             AS_HELP_STRING([--with-zstd-force-compile],[Force compilation of bundled zstd source files]),
             [zstd_force_compile="true"])
-            
+
 AC_ARG_WITH([lz4-force-compile],
             AS_HELP_STRING([--with-lz4-force-compile],[Force compilation of bundled lz4 source files]),
             [lz4_force_compile="true"])
@@ -15,25 +22,25 @@ AC_ARG_WITH([lz4-force-compile],
 AC_ARG_WITH([zstd-include],
             AS_HELP_STRING([--with-zstd-include=INCLUDE_PATH],[the location of zstd header files]),
             [zstd_include_path=$withval])
-            
+
 AC_ARG_WITH([zstd-lib],
             AS_HELP_STRING([--with-zstd-lib=LIB_PATH],[the location of zstd library files]),
             [zstd_lib_path=$withval])
-            
+
 AC_ARG_WITH([lz4-include],
             AS_HELP_STRING([--with-lz4-include=INCLUDE_PATH],[the location of lz4 header files]),
             [lz4_include_path=$withval])
-            
+
 AC_ARG_WITH([lz4-lib],
             AS_HELP_STRING([--with-lz4-lib=LIB_PATH],[the location of lz4 library files]),
             [lz4_lib_path=$withval])
-            
+
 AC_ARG_WITH([simd],
             AS_HELP_STRING([--with-simd],[Manually select SIMD support (options: AVX2, SSE2)]),
             [with_simd=$withval])
-       
-  
-# This doesn't seem to be very portable, so we won't use it  
+
+
+# This doesn't seem to be very portable, so we won't use it
 # AX_CHECK_COMPILE_FLAG([-msse2], [SSE2_SUPPORTED=1], [SSE2_SUPPORTED=0])
 # AX_CHECK_COMPILE_FLAG([-mavx2], [AVX2_SUPPORTED=1], [AVX2_SUPPORTED=0])
 # AX_EXT()
@@ -50,6 +57,16 @@ RELEASE=`echo $VERSION_STRING | cut -d. -f3`
 echo $(($MAJOR*100000+$MINOR*100+$RELEASE))
 }
 
+########################################################
+#### Compiler specific flags
+
+AX_COMPILER_VENDOR
+
+if test xx$ax_cv_cxx_compiler_vendor = "xxgnu"; then
+  COMPILER_SPECIFIC_LIBS="-latomic"
+else
+  COMPILER_SPECIFIC_LIBS=""
+fi
 
 ########################################################
 #### Compile ZSTD/LZ4/SIMD checks
@@ -159,6 +176,7 @@ fi
 # echo $LZ4_CLEAN
 # echo $SIMD_FLAG
 
+AC_SUBST([COMPILER_SPECIFIC_LIBS], $COMPILER_SPECIFIC_LIBS)
 AC_SUBST([ZSTD_INCLUDE_PATH], $ZSTD_INCLUDE_PATH)
 AC_SUBST([LZ4_INCLUDE_PATH], $LZ4_INCLUDE_PATH)
 AC_SUBST([ZSTD_LIBS], $ZSTD_LIBS)
