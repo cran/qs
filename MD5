@@ -1,5 +1,5 @@
-e0b6c267b549f952cefa967a308f492a *ChangeLog
-c2e8c012697bae7788e549ab862cf20d *DESCRIPTION
+fc8581a0b31a048662dbe4897d46c1e0 *ChangeLog
+3150459cf549608f5cabcf32fe8820e0 *DESCRIPTION
 84a3ffb4856d7766241e4d689b39639c *NAMESPACE
 2ed690a0a22e6f6881c908a3380c3c54 *R/RcppExports.R
 500885ef7878e90b9e423ead03123077 *R/ascii_encoding.R
@@ -72,7 +72,7 @@ fd6e56d65a81a6ca9e6d37638fd535a4 *src/LZ4/lz4hc.cpp
 15b7318acfa2ef2dd6091ac5e086f12b *src/LZ4/lz4hc.h
 31103ae8537700007bc2af17d3b6ca26 *src/Makevars.in
 78dccab83e30b1d2d57bab6d7d396f88 *src/Makevars.win
-56e58f78475aa2fb44e4f8159fb53b52 *src/RcppExports.cpp
+4060434d7ae110a14000d8b216a4ecd4 *src/RcppExports.cpp
 0524da1f89dd5ef4a6397d8617465956 *src/ZSTD/zstd.c
 140ac87942c30e841dc656359f10e373 *src/ZSTD/zstd.h
 639b5fc3ab7bb4186de9107ce47cfdb5 *src/ascii_encoding/base85.h
