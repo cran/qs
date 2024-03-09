@@ -40,6 +40,8 @@ https://github.com/traversc/qs
 #include <climits>
 #include <cstdint>
 #include <unordered_map>
+#include <unordered_set>
+#include <boost/functional/hash.hpp> // hash for altrep_registry
 
 // platform specific headers
 #ifdef _WIN32
@@ -611,16 +613,16 @@ inline void writeSize4(stream_writer & myFile, const uint64_t x) {
 
 template <class stream_writer>
 inline uint32_t readSize4(stream_writer & myFile) {
-  std::array<char,4> a;
-  read_check(myFile, a.data(),4);
-  return *reinterpret_cast<uint32_t*>(a.data());
+  uint32_t output = 0;
+  read_check(myFile, reinterpret_cast<char*>(&output),4);
+  return output;
 }
 
 template <class stream_writer>
 inline uint64_t readSize8(stream_writer & myFile) {
-  std::array<char,8> a;
-  read_check(myFile, a.data(),8);
-  return *reinterpret_cast<uint64_t*>(a.data());
+  uint64_t output = 0;
+  read_check(myFile, reinterpret_cast<char*>(&output),8);
+  return output;
 }
 
 

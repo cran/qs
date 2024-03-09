@@ -55,7 +55,7 @@ if(F) {
   # install_as_name("https://cran.r-project.org/src/contrib/Archive/qs/qs_0.22.1.tar.gz", "qs221") # zstd, lz4, lz4hc block compress, zstd_stream compress
   # install_as_name("https://cran.r-project.org/src/contrib/Archive/qs/qs_0.23.6.tar.gz", "qs236") # zstd, lz4, lz4hc block compress, zstd_stream compress
   # install_as_name("https://cran.r-project.org/src/contrib/Archive/qs/qs_0.24.1.tar.gz", "qs241") # zstd, lz4, lz4hc block compress, zstd_stream compress
-
+  # install_as_name("https://cran.r-project.org/src/contrib/qs_0.25.7.tar.gz", "qs257")
   # Only qs +0.25 can be installed on R 4.2 due to changes in C API
   install_as_name(pkg = "https://cran.r-project.org/src/contrib/Archive/qs/qs_0.25.3.tar.gz", new_name = "qs253") # zstd, lz4, lz4hc block compress, zstd_stream compress
 
