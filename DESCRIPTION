@@ -1,8 +1,8 @@
 Package: qs
 Type: Package
 Title: Quick Serialization of R Objects
-Version: 0.26.1
-Date: 2024-03-08
+Version: 0.26.3
+Date: 2024-05-15
 Authors@R: c(
     person("Travers", "Ching", email = "traversc@gmail.com", role = c("aut", "cre", "cph")),
     person("Yann", "Collet", role = c("ctb", "cph"), comment = "Yann Collet is the author of the bundled zstd, lz4 and xxHash code"),
@@ -23,7 +23,7 @@ Depends: R (>= 3.0.2)
 Imports: Rcpp, RApiSerialize (>= 0.1.1), stringfish (>= 0.15.1)
 LinkingTo: Rcpp, RApiSerialize, stringfish, BH
 Encoding: UTF-8
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.1
 Suggests: knitr, rmarkdown, testthat, dplyr, data.table
 VignetteBuilder: knitr
 Copyright: This package includes code from the 'zstd' library owned by
@@ -34,7 +34,7 @@ Copyright: This package includes code from the 'zstd' library owned by
 URL: https://github.com/traversc/qs
 BugReports: https://github.com/traversc/qs/issues
 NeedsCompilation: yes
-Packaged: 2024-03-08 08:06:36 UTC; tching
+Packaged: 2024-05-15 17:18:46 UTC; tching
 Author: Travers Ching [aut, cre, cph],
   Yann Collet [ctb, cph] (Yann Collet is the author of the bundled zstd,
     lz4 and xxHash code),
@@ -54,4 +54,4 @@ Author: Travers Ching [aut, cre, cph],
   Salim Brüggemann [ctb] (<https://orcid.org/0000-0002-5329-5987>,
     documentation)
 Repository: CRAN
-Date/Publication: 2024-03-09 03:30:02 UTC
+Date/Publication: 2024-05-16 10:20:04 UTC
