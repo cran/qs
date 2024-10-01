@@ -1,8 +1,8 @@
 Package: qs
 Type: Package
 Title: Quick Serialization of R Objects
-Version: 0.26.3
-Date: 2024-05-15
+Version: 0.27.2
+Date: 2024-09-30
 Authors@R: c(
     person("Travers", "Ching", email = "traversc@gmail.com", role = c("aut", "cre", "cph")),
     person("Yann", "Collet", role = c("ctb", "cph"), comment = "Yann Collet is the author of the bundled zstd, lz4 and xxHash code"),
@@ -13,17 +13,17 @@ Authors@R: c(
     person("Romain", "Francois", role = c("ctb", "cph"), comment = "Derived example/tutorials for ALTREP structures"),
     person("Francesc", "Alted", role = c("ctb", "cph"), comment = "Shuffling routines derived from Blosc library"),
     person("Bryce", "Chamberlain", email = "superchordate@gmail.com", role = c("ctb"), comment = "qsavem and qload functions"),
-    person("Salim", "Brüggemann", email = "salim-b@pm.me", role = c("ctb"), comment = c(ORCID = "0000-0002-5329-5987", contributions = "documentation")))
+    person("Salim", "Brüggemann", email = "salim-b@pm.me", role = c("ctb"), comment = "Contributing to documentation (ORCID:0000-0002-5329-5987)"))
 Maintainer: Travers Ching <traversc@gmail.com>
 Description: Provides functions for quickly writing and reading any R object to and from disk.  
 License: GPL-3
 LazyData: true
 Biarch: true
 Depends: R (>= 3.0.2)
-Imports: Rcpp, RApiSerialize (>= 0.1.1), stringfish (>= 0.15.1)
+Imports: Rcpp, RApiSerialize (>= 0.1.4), stringfish (>= 0.15.1)
 LinkingTo: Rcpp, RApiSerialize, stringfish, BH
 Encoding: UTF-8
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Suggests: knitr, rmarkdown, testthat, dplyr, data.table
 VignetteBuilder: knitr
 Copyright: This package includes code from the 'zstd' library owned by
@@ -31,10 +31,10 @@ Copyright: This package includes code from the 'zstd' library owned by
         created and owned by Yann Collet; xxHash library created and
         owned by Yann Collet; and code derived from the 'Blosc' library
         created and owned by Francesc Alted.
-URL: https://github.com/traversc/qs
-BugReports: https://github.com/traversc/qs/issues
+URL: https://github.com/qsbase/qs
+BugReports: https://github.com/qsbase/qs/issues
 NeedsCompilation: yes
-Packaged: 2024-05-15 17:18:46 UTC; tching
+Packaged: 2024-09-30 16:54:03 UTC; tching
 Author: Travers Ching [aut, cre, cph],
   Yann Collet [ctb, cph] (Yann Collet is the author of the bundled zstd,
     lz4 and xxHash code),
@@ -51,7 +51,7 @@ Author: Travers Ching [aut, cre, cph],
   Francesc Alted [ctb, cph] (Shuffling routines derived from Blosc
     library),
   Bryce Chamberlain [ctb] (qsavem and qload functions),
-  Salim Brüggemann [ctb] (<https://orcid.org/0000-0002-5329-5987>,
-    documentation)
+  Salim Brüggemann [ctb] (Contributing to documentation
+    (ORCID:0000-0002-5329-5987))
 Repository: CRAN
-Date/Publication: 2024-05-16 10:20:04 UTC
+Date/Publication: 2024-10-01 22:10:02 UTC

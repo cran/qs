@@ -7,6 +7,10 @@
 
 #include <qs_common.h>
 
+#if (R_VERSION < R_Version(3, 5, 0))
+#define STRING_PTR_RO STRING_PTR
+#endif
+
 static std::unordered_set<
   std::pair<std::string, std::string>,
   boost::hash<std::pair<std::string, std::string>>
@@ -356,17 +360,19 @@ void writeEnvFrame(T * const sobj, SEXP rho) {
 template <class T>
 void writeObject(T * const sobj, SEXP x) {
   // evaluate promises immediately
-  if(TYPEOF(x) == PROMSXP) {
-    int error_occured = 0;
-    SEXP xeval = R_tryEval(x, R_BaseEnv, &error_occured);
-    if(error_occured) {
-      writeObject(sobj, R_NilValue);
-    } else {
-      PROTECT(xeval);
-      writeObject(sobj, xeval);
-      UNPROTECT(1);
+  if(!trust_promises_global) {
+    if(TYPEOF(x) == PROMSXP) {
+      int error_occurred = 0;
+      SEXP xeval = R_tryEval(x, R_BaseEnv, &error_occurred);
+      if(error_occurred) {
+        writeObject(sobj, R_NilValue);
+      } else {
+        PROTECT(xeval);
+        writeObject(sobj, xeval);
+        UNPROTECT(1);
+      }
+      return;
     }
-    return;
   }
 
   std::vector<SEXP> attrs; // attribute objects and names; r-serialized, env-references and NULLs don't have attributes, so process inline
@@ -403,7 +409,7 @@ void writeObject(T * const sobj, SEXP x) {
       return;
     } else if( altrep_registry.find(std::make_pair(classname, pkgname)) != altrep_registry.end() ) {
       Protect_Tracker pt = Protect_Tracker();
-      SEXP xserialized = PROTECT(serializeToRaw(x,Rf_ScalarInteger(3))); pt++;
+      SEXP xserialized = PROTECT(R::serializeToRaw(x,Rf_ScalarInteger(3))); pt++;
       uint64_t xs_size = Rf_xlength(xserialized);
       writeHeader_common(qstype::RSERIALIZED, xs_size, sobj);
       sobj->push_contiguous(reinterpret_cast<char*>(RAW(xserialized)), xs_size);
@@ -430,7 +436,7 @@ void writeObject(T * const sobj, SEXP x) {
     if(attrs.size() > 0) writeAttributeHeader_common(attrs.size(), sobj);
     uint64_t dl = Rf_xlength(x);
     writeHeader_common(qstype::CHARACTER, dl, sobj);
-    SEXP * xptr = STRING_PTR(x);
+    const SEXP * xptr = STRING_PTR_RO(x);
     for(uint64_t i=0; i<dl; i++) {
       SEXP xi = xptr[i]; // STRING_ELT(x, i);
       if(xi == NA_STRING) {

@@ -607,7 +607,7 @@ SEXP processBlock(T * const sobj) {
   {
     SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
     sobj->getBlockData(reinterpret_cast<char*>(RAW(obj_data)), r_array_len);
-    obj = PROTECT(unserializeFromRaw(obj_data)); pt++;
+    obj = PROTECT(R::unserializeFromRaw(obj_data)); pt++;
     return obj;
   }
   default: // also NILSXP
@@ -646,8 +646,8 @@ SEXP processBlock(T * const sobj) {
     SET_S4_OBJECT(obj);
     // SET_OBJECT(obj, 1); // this flag seems kind of pointless
   }
-  if(TYPEOF(obj) == PROMSXP) {
-    Rcpp::warning("PROMSXP detected, replacing with NULL (see https://github.com/traversc/qs/issues/93)");
+  if( !trust_promises_global && (TYPEOF(obj) == PROMSXP)) {
+    Rcpp::warning("PROMSXP detected, replacing with NULL (see https://github.com/qsbase/qs/issues/93)");
     return R_NilValue;
   } else {
     return obj;
@@ -791,7 +791,7 @@ SEXP processAttributes(T * const sobj, const bool get_attr = true) {
     // R-serialized object, rather than the qs object
     SEXP obj_data = PROTECT(Rf_allocVector(RAWSXP, r_array_len)); pt++;
     sobj->getBlockData(reinterpret_cast<char*>(RAW(obj_data)), r_array_len);
-    SEXP obj = unserializeFromRaw(obj_data); // no need to PROTECT, ATTRIB doesn't allocate
+    SEXP obj = R::unserializeFromRaw(obj_data); // no need to PROTECT, ATTRIB doesn't allocate
     return Rf_PairToVectorList(ATTRIB(obj)); // pairlist, needs to be converted to a regular list
   }
   default: // also NILSXP

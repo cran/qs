@@ -15,7 +15,7 @@
  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
  You can contact the author at:
- https://github.com/traversc/qs
+ https://github.com/qsbase/qs
 */
 
 #include "qs_common.h"
@@ -842,6 +842,13 @@ SEXP get_altrep_class_info(SEXP obj) {
 #else
   throw std::runtime_error("ALTREP is not available in R < 3.5");
 #endif
+}
+
+// [[Rcpp::export(rng = false)]]
+bool set_trust_promises(bool value) {
+  bool previous_value = trust_promises_global;
+  trust_promises_global = value;
+  return previous_value;
 }
 
 

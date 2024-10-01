@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 # You can contact the author at:
-#   https://github.com/traversc/qs
+#   https://github.com/qsbase/qs
 
 
 # Since roxygen2 doesn't parse the `@usage` block, it doesn't know what the usage is, and hence it doesn't find any parameters to inherit, so we can't rely on
@@ -590,3 +590,20 @@ NULL
 #' @examples
 #' get_altrep_class_info(1:5)
 NULL
+
+#' Allow for serialization/deserialization of promises
+#'
+#' Allow for serialization/deserialization of promises
+#'
+#' @usage set_trust_promises(value)
+#'
+#' @param value a boolean `TRUE` or `FALSE`
+#' @return The previous value of the global variable `trust_promises`
+#' 
+#' @export
+#' @name set_trust_promises
+#'
+#' @examples
+#' set_trust_promises(TRUE)
+NULL
+

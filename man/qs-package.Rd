@@ -11,8 +11,8 @@ Provides functions for quickly writing and reading any R object to and from disk
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/traversc/qs}
-  \item Report bugs at \url{https://github.com/traversc/qs/issues}
+  \item \url{https://github.com/qsbase/qs}
+  \item Report bugs at \url{https://github.com/qsbase/qs/issues}
 }
 
 }
@@ -29,7 +29,7 @@ Other contributors:
   \item Romain Francois (Derived example/tutorials for ALTREP structures) [contributor, copyright holder]
   \item Francesc Alted (Shuffling routines derived from Blosc library) [contributor, copyright holder]
   \item Bryce Chamberlain \email{superchordate@gmail.com} (qsavem and qload functions) [contributor]
-  \item Salim Brüggemann \email{salim-b@pm.me} (\href{https://orcid.org/0000-0002-5329-5987}{ORCID}) (documentation) [contributor]
+  \item Salim Brüggemann \email{salim-b@pm.me} (Contributing to documentation (ORCID:0000-0002-5329-5987)) [contributor]
 }
 
 }
