@@ -1,8 +1,8 @@
 Package: qs
 Type: Package
 Title: Quick Serialization of R Objects
-Version: 0.27.2
-Date: 2024-09-30
+Version: 0.27.3
+Date: 2025-3-7
 Authors@R: c(
     person("Travers", "Ching", email = "traversc@gmail.com", role = c("aut", "cre", "cph")),
     person("Yann", "Collet", role = c("ctb", "cph"), comment = "Yann Collet is the author of the bundled zstd, lz4 and xxHash code"),
@@ -34,7 +34,7 @@ Copyright: This package includes code from the 'zstd' library owned by
 URL: https://github.com/qsbase/qs
 BugReports: https://github.com/qsbase/qs/issues
 NeedsCompilation: yes
-Packaged: 2024-09-30 16:54:03 UTC; tching
+Packaged: 2025-03-07 19:45:49 UTC; tching
 Author: Travers Ching [aut, cre, cph],
   Yann Collet [ctb, cph] (Yann Collet is the author of the bundled zstd,
     lz4 and xxHash code),
@@ -54,4 +54,4 @@ Author: Travers Ching [aut, cre, cph],
   Salim Brüggemann [ctb] (Contributing to documentation
     (ORCID:0000-0002-5329-5987))
 Repository: CRAN
-Date/Publication: 2024-10-01 22:10:02 UTC
+Date/Publication: 2025-03-11 12:40:02 UTC

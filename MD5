@@ -1,5 +1,5 @@
-274137a77470a4d21bbbe00266279bb6 *ChangeLog
-05f684fdc9e9d6b5fe5dfeb65e7556c4 *DESCRIPTION
+6b868ad7d16c3c0292ca12e00bb016ec *ChangeLog
+3a5ceb4e99f59a4ded82ec1d82487813 *DESCRIPTION
 50aab4468cdde6e452c1c2b7903c54f2 *NAMESPACE
 6e2ae65956e12158bf7598a3752d46e6 *R/RcppExports.R
 500885ef7878e90b9e423ead03123077 *R/ascii_encoding.R
@@ -82,7 +82,7 @@ fd6e56d65a81a6ca9e6d37638fd535a4 *src/LZ4/lz4hc.cpp
 639b5fc3ab7bb4186de9107ce47cfdb5 *src/ascii_encoding/base85.h
 1ab24252e084484471e551c7f7cc16c1 *src/ascii_encoding/base91.h
 27b3ac6b2058fe5a54c53b96ce809d39 *src/extra_functions.h
-dab4e5c9e33ade0a53953c2a9b558faa *src/qs_common.h
+44022f9f6e3f49bd84557112bd5ec73c *src/qs_common.h
 9d0957365dd025c7d9e38d51bcb1ca54 *src/qs_deserialization.h
 1474196a9d75966a4be2a56fa2f10e85 *src/qs_deserialization_stream.h
 74f80b45918af48fa6f291290fd1b908 *src/qs_deserialize_common.h

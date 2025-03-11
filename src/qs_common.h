@@ -95,10 +95,10 @@ using namespace Rcpp;
 bool is_big_endian();
 
 // https://stackoverflow.com/a/36835959/2723734
-inline constexpr unsigned char operator "" _u8(unsigned long long arg) noexcept {
+inline constexpr unsigned char operator ""_u8(unsigned long long arg) noexcept {
   return static_cast<uint8_t>(arg);
 }
-inline constexpr unsigned char operator "" _u16(unsigned long long arg) noexcept {
+inline constexpr unsigned char operator ""_u16(unsigned long long arg) noexcept {
   return static_cast<uint16_t>(arg);
 }
 

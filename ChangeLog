@@ -1,3 +1,6 @@
+Version 0.27.3
+   * Minor update: fix `_u8` literal operator to align with C++23 (-Wdeprecated-literal-operator)
+
 Version 0.27.2 (2024-09-27)
    * Use `STRING_PTR_RO` instead of `STRING_PTR`
    * Add `R::` namespace to `RApiSerialize` calls (https://github.com/eddelbuettel/rapiserialize/issues/8)
